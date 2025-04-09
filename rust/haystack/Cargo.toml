@@ -1,0 +1,17 @@
+[package]
+name = "haystack"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+haystack-core = { path = "../haystack-core" }
+haystack-dataclasses = { path = "../haystack-dataclasses" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true

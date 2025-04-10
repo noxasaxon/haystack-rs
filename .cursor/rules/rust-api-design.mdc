@@ -1,0 +1,106 @@
+---
+title: Rust API Design Guidelines
+description: Guidelines for designing ergonomic and robust Rust APIs
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust API Design Guidelines
+
+Well-designed APIs make code more maintainable and user-friendly. Follow these principles:
+
+## API ergonomics
+
+- **Design for the caller's convenience**, not the implementer's
+- **Follow Rust naming conventions** (snake_case for functions, CamelCase for types)
+- **Use consistent naming patterns** across your API
+- **Minimize the cognitive load** for API users
+
+## Type system utilization
+
+- **Use the type system to prevent invalid states**
+- **Leverage enums for representing states and variants**
+- **Design error types** that are informative and actionable
+- **Use newtypes to provide type safety** for domain-specific values
+
+## Interface design
+
+- **Create coherent traits** that represent well-defined capabilities
+- **Follow the principle of least privilege** for exposed functionality
+- **Consider implementing standard traits** (`Display`, `Debug`, `Clone`, etc.) when appropriate
+- **Design for composition and extension**
+
+## Builder pattern and method chaining
+
+- **Use the builder pattern** for complex object construction
+- **Implement method chaining** for fluent interfaces
+- **Return `&mut self`** for builder methods to enable chaining
+- **Provide sensible defaults** where appropriate
+
+## API stability and versioning
+
+- **Follow semantic versioning principles**
+- **Be clear about what is public API** versus implementation details
+- **Use feature flags** to introduce new capabilities safely
+- **Consider deprecation strategies** before removing functionality
+- **Document breaking changes** thoroughly
+
+## Error handling
+
+- **Design error types** to be informative and actionable
+- **Use `Result<T, E>`** consistently for operations that can fail
+- **Consider context methods on `Result`** to add information to errors
+- **Provide appropriate conversion mechanisms** between error types
+
+## Documentation
+
+- **Document every public item** with rustdoc comments
+- **Include examples** in documentation
+- **Explain the purpose** of functions, methods, and types
+- **Document panic conditions** and other failure modes
+- **Include links to related items** in documentation
+
+## API minimalism
+
+- **Keep the API surface small** and focused
+- **Avoid exposing implementation details**
+- **Provide extension traits** for specialized functionality
+- **Consider using the facade pattern** for complex libraries
+
+## Performance considerations
+
+- **Document performance characteristics** where relevant
+- **Avoid surprising performance cliffs**
+- **Consider using references** instead of moving values when appropriate
+- **Provide specialized methods** for performance-critical use cases
+
+## Common mistakes
+
+- **Inconsistent naming**: Using different naming patterns within the same API
+- **Exposing implementation details**: Leaking internal types or implementation specifics
+- **Insufficient documentation**: Not providing enough guidance for API users
+- **Over-generic APIs**: Making APIs too generic when specialization would be clearer
+- **Breaking changes in minor versions**: Not respecting semantic versioning
+- **Unexpected panics**: Not documenting or handling error conditions appropriately
+- **Poor error messages**: Error types that don't provide useful context
+- **Reinventing the wheel**: Not using standard traits when they would fit
+- **Excessive use of generics**: Making APIs hard to understand with complex type parameters
+- **Missing examples**: Not showing typical usage in documentation
+
+## Ecosystem integration
+
+- **Consider integration** with other popular crates
+- **Implement standard traits** when they fit semantically
+- **Use common patterns** from the Rust ecosystem
+- **rust-api-guidelines**: Follow the official Rust API Guidelines
+- **rustdoc**: Use all features of Rust's documentation system
+
+## Related rules
+
+- **Rust Error Handling**: Design appropriate error types for your API
+- **Rust Memory Safety**: Ensure APIs don't enable unsafe usage patterns
+- **Rust Testing**: Test APIs from the user's perspective
+- **Rust Newtype Pattern**: Use newtypes for type-safe APIs
+- **Rust Macros**: Design declarative macros that complement your API
+
+By following these principles, you'll create Rust APIs that are both powerful and pleasant to use.

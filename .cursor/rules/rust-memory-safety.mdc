@@ -1,0 +1,89 @@
+---
+title: Rust Memory Safety Guidelines
+description: Guidelines for writing memory-safe Rust code
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Memory Safety Guidelines
+
+Rust's ownership model helps prevent memory safety issues, but follow these best practices for truly safe code:
+
+## Avoid unsafe code when possible
+
+- **Only use `unsafe` blocks when absolutely necessary**, you should almost never use unsafe
+- **Document all unsafe code** with detailed explanations of safety invariants
+- **Encapsulate unsafe code** within safe abstractions
+- **Verify unsafe code** with thorough testing and potentially formal verification
+
+## Respect borrowing rules
+
+- **Follow the borrowing rules**: one mutable reference OR multiple immutable references
+- **Understand the lifetime system** and use appropriate lifetime annotations
+- **Use reference counting** (`Rc`, `Arc`) when shared ownership is needed
+- **Consider using interior mutability patterns** (`Cell`, `RefCell`, `Mutex`, `RwLock`) judiciously
+
+## Handle resources properly
+
+- **Implement `Drop` trait** for types that manage resources
+- **Use RAII** (Resource Acquisition Is Initialization) pattern
+- **Consider using smart pointers** like `Box`, `Rc`, and `Arc` appropriately
+- **Be cautious with self-referential structures** and understand their limitations
+
+## Use appropriate container types
+
+- **Use `Vec<T>`** for dynamic arrays
+- **Use `String`** for owned text data
+- **Prefer slices** (`&[T]`, `&str`) for borrowed data
+- **Consider specialized containers** from the standard library or crates for specific use cases
+
+## Memory leak prevention
+
+- **Be cautious with circular references** using `Rc` or `Arc` (use weak references)
+- **Ensure all resources are properly released** when no longer needed
+- **Use scope-based resource management** for deterministic cleanup
+- **Avoid `std::mem::forget`** unless absolutely necessary
+
+## Raw pointers and FFI
+
+- **Minimize raw pointer usage** (`*const T`, `*mut T`) to FFI boundaries
+- **Validate all external data** before creating safe abstractions
+- **Ensure proper pointer alignment** when working with raw pointers
+- **Check for null pointers** when converting from raw pointers
+- **Handle C strings carefully** using `CStr` and `CString`
+
+## Thread safety considerations
+
+- **Use thread-safe containers** when sharing data between threads
+- **Understand `Send` and `Sync` traits** and their implications
+- **Avoid data races** by using proper synchronization
+- **Consider using atomic types** for simple shared state
+- **Prefer message passing** when appropriate
+
+## Common mistakes
+
+- **Premature use of unsafe**: Using unsafe code when safe alternatives exist
+- **Insufficient documentation**: Not documenting unsafe code safety invariants
+- **Ignoring compiler warnings**: Rust's compiler warnings often indicate memory safety issues
+- **Memory leaks through cycles**: Creating reference cycles with `Rc` or `Arc`
+- **Misusing lifetime annotations**: Specifying incorrect lifetime relationships
+- **Incorrect unsafe abstractions**: Creating unsafe abstractions that don't maintain their safety invariants
+- **Violating aliasing rules**: Creating multiple mutable references to the same memory
+- **Improper FFI usage**: Not validating data coming from or going to foreign code
+
+## Ecosystem integration
+
+- **static_assertions**: Compile-time assertions for safety checks
+- **pin-project**: Safe handling of pinned data
+- **ghost-cell**: Advanced lifetime-based cells for self-referential structures
+- **ouroboros**: Safe self-referential structures
+- **zerocopy**: Safe zero-copy parsing and serialization
+
+## Related rules
+
+- **Rust FFI**: Ensures safe interfacing with other languages
+- **Rust Lifetimes and Borrowing**: Details on lifetime management
+- **Rust Error Handling**: Properly handling errors improves memory safety
+- **Rust Testing**: Thorough testing is essential for verifying safety
+
+By following these guidelines, you'll leverage Rust's safety guarantees while writing efficient, maintainable code.

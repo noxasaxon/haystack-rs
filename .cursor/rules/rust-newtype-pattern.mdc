@@ -1,0 +1,105 @@
+---
+title: Rust Newtype Pattern Guidelines
+description: Guidelines for effectively implementing and using the Newtype pattern in Rust
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Newtype Pattern
+
+The Newtype pattern involves wrapping an existing type in a tuple struct with a single field, creating a distinct type that is separate from the original at compile time.
+
+## When to use the Newtype pattern
+
+- **Type safety and semantic clarity**: Prevent mixing of values with the same underlying representation but different meanings
+- **API control and abstraction**: Hide implementation details and control which methods are available
+- **Implementing external traits on external types**: Bypass the "orphan rule" that prevents implementing external traits on external types
+- **Adding validation and ensuring invariants**: Validate input at construction time
+- **Custom formatting and behavior**: Override behavior for specific types (e.g., masking sensitive data)
+
+## Basic implementation
+
+```rust
+// Basic newtype
+struct UserId(u64);
+
+// Newtype with validation
+struct Email(String);
+
+impl Email {
+    pub fn new(email: String) -> Result<Self, ValidationError> {
+        if is_valid_email(&email) {
+            Ok(Self(email))
+        } else {
+            Err(ValidationError::InvalidEmail)
+        }
+    }
+}
+
+// Newtype with custom formatting for sensitive data
+struct Password(String);
+
+impl Display for Password {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "****************")
+    }
+}
+```
+
+## Implementation guidelines
+
+- Keep the inner type private when possible to maintain encapsulation
+- Implement only the methods you want to expose
+- Use the newtype to document intent and improve type safety
+- Consider implementing `Deref` for newtypes that truly represent a "smarter pointer" (but use sparingly)
+- For validation newtypes, ensure construction is only possible through validated methods
+
+## Handling trait implementations
+
+Newtypes don't automatically implement traits of their inner types. Handle this in one of these ways:
+
+1. **Manual implementation**: Implement traits manually by delegating to the inner type
+
+   ```rust
+   impl Deref for UserId {
+       type Target = u64;
+       fn deref(&self) -> &Self::Target {
+           &self.0
+       }
+   }
+   ```
+
+2. **Derive macros**: Use crates like `derive_more` or `the-newtype` to reduce boilerplate
+
+   ```rust
+   #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+   struct UserId(u64);
+   ```
+
+3. **Trait bounds**: Define trait bounds for generic code that needs specific trait implementations
+
+## Common pitfalls and solutions
+
+- **Trait implementation boilerplate**: Use helper crates like `derive_more`
+- **Method access**: Access inner methods via `.0`, forwarding methods, or (carefully) `Deref`
+- **Field access**: Provide accessor methods rather than exposing the inner value directly
+- **Conversion**: Implement `From`/`Into` for seamless conversion where appropriate
+
+## Comparison with type aliases
+
+Unlike type aliases (`type UserId = u64`), newtypes:
+
+- Create a truly distinct type that can't be mixed with the original type
+- Allow implementing different traits
+- Provide stronger type safety guarantees
+- Enable stricter API design
+
+## Combining with the Typestate pattern
+
+The Newtype pattern combines effectively with the Typestate pattern:
+
+- Use Newtype to create distinct types for values
+- Use Typestate to model state transitions with compile-time enforcement
+- Together, they provide both semantic clarity and state correctness guarantees
+
+By using the Newtype pattern, you leverage Rust's type system to enhance code clarity, safety, and maintainability without runtime overhead.

@@ -1,0 +1,34 @@
+---
+title: Interface-First Development
+description: When implementing multi-component systems, define interfaces before concrete implementations to reduce integration issues
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Interface-First Development
+
+When implementing complex, multi-component systems, always follow an interface-first approach:
+
+1. Define public trait interfaces before implementing any concrete types
+2. Document parameter types, order, and return values explicitly
+3. Create stub implementations that satisfy interfaces before building full implementations
+4. Write integration tests that verify compatibility between components
+5. Use compiler warnings as indicators of interface misalignment
+
+This approach prevents issues like parameter order mismatches (as seen below) and ensures components can be integrated with minimal friction:
+
+```rust
+// AVOID: Inconsistent parameter order
+trait AssessmentEngine {
+    fn assess(&self, document: &Document, framework: &Framework) -> Result<Assessment>;
+}
+
+impl AssessmentEngine for CustomEngine {
+    // Parameters don't match trait definition!
+    fn assess(&self, framework: &Framework, document: &Document) -> Result<Assessment> {
+        // ...
+    }
+}
+```
+
+By defining interfaces first, you'll prevent integration errors at compile time, enable parallel development with clear contracts, and facilitate easier testing.

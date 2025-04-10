@@ -1,0 +1,921 @@
+---
+title: Rust Async Programming Guidelines
+description: Guidelines for writing efficient, maintainable async Rust code
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Async Programming Guidelines
+
+Asynchronous programming in Rust enables highly concurrent applications without the overhead of threads. These guidelines will help you write efficient, correct, and maintainable async code.
+
+## Understanding async fundamentals
+
+- **Know how the async model works** in Rust
+
+  ```rust
+  // An async function returns a Future that must be awaited
+  async fn fetch_data(url: &str) -> Result<String, Error> {
+      // This code doesn't run until the Future is polled
+      let response = client.get(url).send().await?;
+      let body = response.text().await?;
+      Ok(body)
+  }
+
+  // A Future must be executed by a runtime
+  async fn main() {
+      match fetch_data("https://example.com").await {
+          Ok(data) => println!("Received: {}", data),
+          Err(e) => eprintln!("Error: {}", e),
+      }
+  }
+  ```
+
+- **Use the right async runtime** for your needs
+
+  ```toml
+  # Cargo.toml
+  [dependencies]
+  # Tokio - full-featured runtime for most use cases
+  tokio = { version = "1", features = ["full"] }
+
+  # Alternative: async-std - std-like API
+  # async-std = { version = "1", features = ["attributes"] }
+
+  # Alternative: smol - minimal runtime
+  # smol = "1.2"
+  ```
+
+  ```rust
+  // Using Tokio runtime
+  #[tokio::main]
+  async fn main() {
+      // Your async code here
+  }
+
+  // Using async-std runtime
+  #[async_std::main]
+  async fn main() {
+      // Your async code here
+  }
+
+  // Manual runtime initialization
+  fn main() {
+      let runtime = tokio::runtime::Runtime::new().unwrap();
+      runtime.block_on(async {
+          // Your async code here
+      });
+  }
+  ```
+
+- **Understand Future and async/await**
+
+  ```rust
+  use std::future::Future;
+  use std::pin::Pin;
+  use std::task::{Context, Poll};
+
+  // Under the hood, async/await creates state machines
+  // This is roughly equivalent to:
+  struct MyFuture {
+      state: State,
+  }
+
+  enum State {
+      Start,
+      WaitingOnFirst,
+      WaitingOnSecond,
+      Done,
+  }
+
+  impl Future for MyFuture {
+      type Output = String;
+
+      fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+          match self.state {
+              State::Start => {
+                  // Start first operation
+                  self.state = State::WaitingOnFirst;
+                  cx.waker().wake_by_ref();
+                  Poll::Pending
+              }
+              State::WaitingOnFirst => {
+                  // Check if first operation complete
+                  // If not ready: return Poll::Pending
+                  // If ready: start second operation
+                  self.state = State::WaitingOnSecond;
+                  Poll::Pending
+              }
+              State::WaitingOnSecond => {
+                  // Check if second operation complete
+                  // If ready:
+                  self.state = State::Done;
+                  Poll::Ready("result".to_string())
+              }
+              State::Done => {
+                  panic!("Future polled after completion")
+              }
+          }
+      }
+  }
+  ```
+
+## Structuring async code
+
+- **Keep async functions focused** and compose them
+
+  ```rust
+  // Good: Small, focused async functions
+  async fn fetch_user(id: UserId) -> Result<User, Error> {
+      let url = format!("/users/{}", id);
+      let response = client.get(&url).send().await?;
+      response.json().await.map_err(Error::from)
+  }
+
+  async fn fetch_user_posts(user_id: UserId) -> Result<Vec<Post>, Error> {
+      let url = format!("/users/{}/posts", user_id);
+      let response = client.get(&url).send().await?;
+      response.json().await.map_err(Error::from)
+  }
+
+  // Compose smaller functions
+  async fn fetch_user_with_posts(id: UserId) -> Result<(User, Vec<Post>), Error> {
+      // Fetch in parallel when possible
+      let (user, posts) = tokio::join!(
+          fetch_user(id),
+          fetch_user_posts(id)
+      );
+
+      Ok((user?, posts?))
+  }
+  ```
+
+- **Use appropriate error handling** for async code
+
+  ```rust
+  // Option 1: Use the ? operator with async/await
+  async fn process_data() -> Result<(), Error> {
+      let data = fetch_data().await?;
+      let processed = transform_data(data).await?;
+      save_data(processed).await?;
+      Ok(())
+  }
+
+  // Option 2: For more complex flows, handle errors explicitly
+  async fn process_with_fallback() -> Result<Data, Error> {
+      match primary_data_source().await {
+          Ok(data) => Ok(data),
+          Err(e) => {
+              log::warn!("Primary source failed: {}", e);
+              backup_data_source().await
+          }
+      }
+  }
+  ```
+
+- **Organize long-running tasks** clearly
+
+  ```rust
+  // Good: Structured application with clean lifetime management
+  async fn run_app() -> Result<(), Error> {
+      // Initialize resources
+      let db = connect_to_database().await?;
+      let client = create_api_client();
+
+      // Create shared state
+      let state = Arc::new(AppState { db, client });
+
+      // Start background tasks with structured concurrency
+      let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel(1);
+
+      let worker_handle = {
+          let state = state.clone();
+          let mut shutdown_rx = shutdown_rx.subscribe();
+
+          tokio::spawn(async move {
+              tokio::select! {
+                  _ = background_worker(state) => {
+                      log::info!("Worker completed");
+                  }
+                  _ = shutdown_rx.recv() => {
+                      log::info!("Worker shutting down");
+                  }
+              }
+          })
+      };
+
+      let server_handle = {
+          let state = state.clone();
+          let mut shutdown_rx = shutdown_rx.subscribe();
+
+          tokio::spawn(async move {
+              tokio::select! {
+                  result = run_http_server(state) => {
+                      if let Err(e) = result {
+                          log::error!("Server error: {}", e);
+                      }
+                  }
+                  _ = shutdown_rx.recv() => {
+                      log::info!("Server shutting down");
+                  }
+              }
+          })
+      };
+
+      // Wait for shutdown signal
+      tokio::signal::ctrl_c().await?;
+      log::info!("Shutdown signal received");
+
+      // Initiate graceful shutdown
+      shutdown_tx.send(())?;
+
+      // Wait for tasks to complete
+      let _ = tokio::join!(worker_handle, server_handle);
+
+      // Clean up resources
+      state.db.close().await?;
+
+      Ok(())
+  }
+  ```
+
+## Async patterns and anti-patterns
+
+- **Use parallel execution** when appropriate
+
+  ```rust
+  // Sequential execution (slower)
+  async fn sequential() -> Result<(), Error> {
+      let data1 = fetch_data_1().await?;
+      let data2 = fetch_data_2().await?;
+      let data3 = fetch_data_3().await?;
+      process_all_data(data1, data2, data3).await?;
+      Ok(())
+  }
+
+  // Parallel execution (faster)
+  async fn parallel() -> Result<(), Error> {
+      let (result1, result2, result3) = tokio::join!(
+          fetch_data_1(),
+          fetch_data_2(),
+          fetch_data_3()
+      );
+
+      let data1 = result1?;
+      let data2 = result2?;
+      let data3 = result3?;
+
+      process_all_data(data1, data2, data3).await?;
+      Ok(())
+  }
+  ```
+
+- **Avoid blocking the async runtime**
+
+  ```rust
+  // BAD: Blocks the async thread
+  async fn bad_file_read() -> Result<String, std::io::Error> {
+      // This blocks the thread and prevents other tasks from running!
+      let content = std::fs::read_to_string("large_file.txt")?;
+      Ok(content)
+  }
+
+  // GOOD: Use async file operations or spawn_blocking
+  async fn good_file_read() -> Result<String, std::io::Error> {
+      // Option 1: Use async file operations
+      let content = tokio::fs::read_to_string("large_file.txt").await?;
+
+      // Option 2: Or for libraries without async support, use spawn_blocking
+      let content = tokio::task::spawn_blocking(|| {
+          std::fs::read_to_string("large_file.txt")
+      }).await??;
+
+      Ok(content)
+  }
+  ```
+
+- **Handle cancellation correctly**
+
+  ```rust
+  // Use select! for timeouts and cancellation
+  async fn fetch_with_timeout(url: &str) -> Result<String, Error> {
+      tokio::select! {
+          result = fetch_data(url) => result,
+          _ = tokio::time::sleep(Duration::from_secs(5)) => {
+              Err(Error::Timeout("Request timed out after 5 seconds"))
+          }
+      }
+  }
+
+  // When a task is cancelled, ensure resources are cleaned up
+  async fn process_with_cleanup() {
+      let temp_file = create_temp_file().await.unwrap();
+
+      // Use Drop guard to ensure cleanup
+      struct CleanupGuard {
+          path: PathBuf,
+      }
+
+      impl Drop for CleanupGuard {
+          fn drop(&mut self) {
+              // This runs even if the async task is cancelled
+              let _ = std::fs::remove_file(&self.path);
+          }
+      }
+
+      let _guard = CleanupGuard { path: temp_file.path().to_path_buf() };
+
+      // Do work that might be cancelled...
+      process_file(&temp_file).await;
+
+      // temp_file will be removed when _guard is dropped
+  }
+  ```
+
+- **Be cautious with unbounded operations**
+
+  ```rust
+  // BAD: Unbounded concurrent requests
+  async fn bad_parallel_requests(urls: &[String]) -> Vec<Result<String, Error>> {
+      let mut handles = Vec::with_capacity(urls.len());
+
+      // Spawns all tasks at once, could overload system
+      for url in urls {
+          let url = url.clone();
+          handles.push(tokio::spawn(async move {
+              client.get(&url).send().await?.text().await
+          }));
+      }
+
+      // Wait for all to complete
+      let mut results = Vec::with_capacity(urls.len());
+      for handle in handles {
+          results.push(handle.await.unwrap());
+      }
+
+      results
+  }
+
+  // GOOD: Bounded concurrency
+  async fn good_parallel_requests(urls: &[String]) -> Vec<Result<String, Error>> {
+      use futures::stream::{StreamExt, TryStreamExt};
+
+      futures::stream::iter(urls)
+          .map(|url| {
+              let url = url.clone();
+              async move {
+                  client.get(&url).send().await?.text().await
+              }
+          })
+          .buffer_unordered(10) // Only 10 concurrent requests
+          .collect::<Vec<_>>()
+          .await
+  }
+  ```
+
+## Async traits and generic code
+
+- **Work with async traits** using appropriate patterns
+
+  ```rust
+  // Option 1: Use trait objects with Box<dyn Future>
+  trait Repository {
+      fn fetch_data(&self, id: i32) -> Box<dyn Future<Output = Result<Data, Error>> + Send + '_>;
+  }
+
+  impl Repository for DbRepository {
+      fn fetch_data(&self, id: i32) -> Box<dyn Future<Output = Result<Data, Error>> + Send + '_> {
+          Box::new(async move {
+              // implementation
+              todo!()
+          })
+      }
+  }
+
+  // Option 2: Use async-trait crate
+  use async_trait::async_trait;
+
+  #[async_trait]
+  trait BetterRepository {
+      async fn fetch_data(&self, id: i32) -> Result<Data, Error>;
+  }
+
+  #[async_trait]
+  impl BetterRepository for DbRepository {
+      async fn fetch_data(&self, id: i32) -> Result<Data, Error> {
+          // implementation
+          todo!()
+      }
+  }
+
+  // Option 3: Use associated types (Rust 1.75+)
+  trait ModernRepository {
+      type FetchFuture<'a>: Future<Output = Result<Data, Error>> + Send + 'a
+      where Self: 'a;
+
+      fn fetch_data<'a>(&'a self, id: i32) -> Self::FetchFuture<'a>;
+  }
+
+  impl ModernRepository for DbRepository {
+      type FetchFuture<'a> = impl Future<Output = Result<Data, Error>> + Send + 'a;
+
+      fn fetch_data<'a>(&'a self, id: i32) -> Self::FetchFuture<'a> {
+          async move {
+              // implementation
+              todo!()
+          }
+      }
+  }
+  ```
+
+- **Handle generic async code** effectively
+
+  ```rust
+  // Generic function that works with any async source
+  async fn process_from_source<S, F, T, E>(source: S, id: i32) -> Result<T, E>
+  where
+      S: FnOnce(i32) -> F,
+      F: Future<Output = Result<T, E>>,
+  {
+      source(id).await
+  }
+
+  // Usage
+  async fn example() -> Result<(), Error> {
+      let db = Database::new();
+
+      // Works with any source that returns a compatible Future
+      let user = process_from_source(|id| db.fetch_user(id), 42).await?;
+      let product = process_from_source(|id| api.get_product(id), 123).await?;
+
+      Ok(())
+  }
+  ```
+
+## Async lifecycle management
+
+- **Implement proper shutdown handling**
+
+  ```rust
+  async fn run_server_with_shutdown() -> Result<(), Error> {
+      // Create shutdown channel
+      let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
+
+      // Clone sender for signal handler
+      let shutdown_tx_clone = shutdown_tx.clone();
+
+      // Handle Ctrl+C
+      tokio::spawn(async move {
+          tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl+c");
+          println!("Shutdown signal received");
+          let _ = shutdown_tx_clone.send(());
+      });
+
+      // Start server
+      let server = start_server(shutdown_rx).await?;
+
+      // Wait for server to complete
+      server.await?;
+
+      // Run shutdown sequence
+      println!("Server shut down, running cleanup...");
+      cleanup_resources().await?;
+
+      Ok(())
+  }
+
+  async fn start_server(mut shutdown_rx: tokio::sync::broadcast::Receiver<()>) -> Result<impl Future<Output = Result<(), Error>>, Error> {
+      // Setup server
+      let listener = tokio::net::TcpListener::bind("127.0.0.1:8080").await?;
+      println!("Server listening on 127.0.0.1:8080");
+
+      // Return server future
+      Ok(async move {
+          loop {
+              tokio::select! {
+                  // Accept connections
+                  accept_result = listener.accept() => {
+                      let (socket, addr) = accept_result?;
+                      println!("Accepted connection from {}", addr);
+
+                      // Spawn connection handler
+                      tokio::spawn(async move {
+                          // Handle connection
+                          if let Err(e) = handle_connection(socket).await {
+                              eprintln!("Connection error: {}", e);
+                          }
+                      });
+                  }
+
+                  // Shutdown signal
+                  _ = shutdown_rx.recv() => {
+                      println!("Shutdown signal received by server");
+                      break;
+                  }
+              }
+          }
+
+          Ok(())
+      })
+  }
+  ```
+
+- **Use structured concurrency** for task management
+
+  ```rust
+  use futures::future::FutureExt;
+
+  async fn run_tasks() -> Result<(), Error> {
+      // Create task group
+      let task_group = TaskGroup::new();
+
+      // Spawn tasks
+      task_group.spawn(task_one());
+      task_group.spawn(task_two());
+      task_group.spawn(task_three());
+
+      // Wait for all tasks or first error
+      task_group.wait().await?;
+
+      Ok(())
+  }
+
+  // Simple task group implementation
+  struct TaskGroup {
+      tasks: Vec<tokio::task::JoinHandle<Result<(), Error>>>,
+  }
+
+  impl TaskGroup {
+      fn new() -> Self {
+          Self {
+              tasks: Vec::new(),
+          }
+      }
+
+      fn spawn<F>(&mut self, future: F)
+      where
+          F: Future<Output = Result<(), Error>> + Send + 'static,
+      {
+          let handle = tokio::spawn(future);
+          self.tasks.push(handle);
+      }
+
+      async fn wait(self) -> Result<(), Error> {
+          for task in self.tasks {
+              // Propagate errors, ignoring JoinError (task panic)
+              if let Ok(result) = task.await {
+                  result?;
+              }
+          }
+
+          Ok(())
+      }
+  }
+  ```
+
+- **Implement graceful resource management**
+
+  ```rust
+  struct AsyncResource {
+      connection: Connection,
+  }
+
+  impl AsyncResource {
+      async fn new() -> Result<Self, Error> {
+          let connection = Connection::connect("db://example").await?;
+          Ok(Self { connection })
+      }
+
+      async fn close(self) -> Result<(), Error> {
+          // Graceful shutdown for the resource
+          self.connection.close().await
+      }
+  }
+
+  // Using RAII pattern with async cleanup
+  struct ManagedResource {
+      resource: Option<AsyncResource>,
+  }
+
+  impl ManagedResource {
+      async fn new() -> Result<Self, Error> {
+          let resource = AsyncResource::new().await?;
+          Ok(Self { resource: Some(resource) })
+      }
+  }
+
+  impl Drop for ManagedResource {
+      fn drop(&mut self) {
+          if let Some(resource) = self.resource.take() {
+              // Schedule cleanup in the background
+              // Note: This is not ideal as it might not complete
+              tokio::spawn(async move {
+                  if let Err(e) = resource.close().await {
+                      eprintln!("Error closing resource: {}", e);
+                  }
+              });
+          }
+      }
+  }
+
+  // Better approach: explicit cleanup
+  async fn use_resource() -> Result<(), Error> {
+      let resource = AsyncResource::new().await?;
+
+      // Use resource
+      process_data(&resource).await?;
+
+      // Explicitly clean up
+      resource.close().await?;
+
+      Ok(())
+  }
+  ```
+
+## Testing async code
+
+- **Create effective async tests**
+
+  ```rust
+  #[tokio::test]
+  async fn test_async_function() -> Result<(), Error> {
+      // Arrange
+      let client = MockClient::new();
+      client.expect_get()
+          .with(mockall::predicate::eq("https://example.com"))
+          .returning(|_| {
+              Ok(MockResponse::new("test response"))
+          });
+
+      // Act
+      let result = fetch_data(&client, "https://example.com").await?;
+
+      // Assert
+      assert_eq!(result, "test response");
+      Ok(())
+  }
+  ```
+
+- **Test timeouts and cancellation**
+
+  ```rust
+  #[tokio::test]
+  async fn test_timeout_behavior() {
+      // Create a future that never completes
+      let never_completes = async {
+          tokio::time::sleep(Duration::from_secs(100)).await;
+          "This should never return"
+      };
+
+      // Test that our timeout logic works
+      let result = tokio::time::timeout(
+          Duration::from_millis(50),
+          never_completes
+      ).await;
+
+      // Assert we got a timeout error
+      assert!(result.is_err());
+      assert!(matches!(result, Err(tokio::time::error::Elapsed { .. })));
+  }
+  ```
+
+- **Use test utilities for async code**
+
+  ```rust
+  // Mock for async trait
+  #[async_trait]
+  trait DataSource {
+      async fn get_data(&self, id: i32) -> Result<Data, Error>;
+  }
+
+  // Mock implementation for testing
+  struct MockDataSource {
+      // Use a channel to control responses in tests
+      response_tx: tokio::sync::mpsc::Sender<Result<Data, Error>>,
+      response_rx: tokio::sync::mpsc::Receiver<Result<Data, Error>>,
+  }
+
+  impl MockDataSource {
+      fn new() -> Self {
+          let (response_tx, response_rx) = tokio::sync::mpsc::channel(10);
+          Self { response_tx, response_rx }
+      }
+
+      async fn send_response(&self, result: Result<Data, Error>) {
+          self.response_tx.send(result).await.unwrap();
+      }
+  }
+
+  #[async_trait]
+  impl DataSource for MockDataSource {
+      async fn get_data(&self, _id: i32) -> Result<Data, Error> {
+          self.response_rx.recv().await.unwrap()
+      }
+  }
+
+  // Test using the mock
+  #[tokio::test]
+  async fn test_with_mock_data_source() {
+      // Arrange
+      let mock_source = MockDataSource::new();
+      let service = Service::new(mock_source);
+
+      // Set up mock to return data when requested
+      let expected_data = Data { value: 42 };
+      tokio::spawn(async move {
+          mock_source.send_response(Ok(expected_data)).await;
+      });
+
+      // Act
+      let result = service.process(1).await.unwrap();
+
+      // Assert
+      assert_eq!(result.value, 42);
+  }
+  ```
+
+## Performance considerations
+
+- **Use appropriate concurrency controls**
+
+  ```rust
+  // Using semaphores for controlled concurrency
+  async fn process_items_concurrently(items: &[Item]) -> Result<Vec<Output>, Error> {
+      // Limit concurrency to avoid overwhelming resources
+      let semaphore = Arc::new(Semaphore::new(10));
+      let mut results = Vec::with_capacity(items.len());
+      let mut handles = Vec::with_capacity(items.len());
+
+      for item in items {
+          let item = item.clone();
+          let semaphore = Arc::clone(&semaphore);
+
+          let handle = tokio::spawn(async move {
+              // Acquire permit, limiting concurrency
+              let _permit = semaphore.acquire().await.unwrap();
+
+              // Process with controlled concurrency
+              process_item(item).await
+          });
+
+          handles.push(handle);
+      }
+
+      for handle in handles {
+          results.push(handle.await??);
+      }
+
+      Ok(results)
+  }
+  ```
+
+- **Profile and optimize async code**
+
+  ```rust
+  // Use tracing for profiling
+  use tracing::{span, Level};
+
+  async fn optimized_function() -> Result<(), Error> {
+      // Create a span for tracing
+      let span = span!(Level::INFO, "fetch_operation", function = "optimized_function");
+      let _enter = span.enter();
+
+      // Measure async operations
+      let start = std::time::Instant::now();
+      let result = fetch_data().await?;
+      let duration = start.elapsed();
+
+      tracing::info!(
+          duration_ms = duration.as_millis(),
+          data_size = result.len(),
+          "Completed fetch"
+      );
+
+      Ok(())
+  }
+  ```
+
+- **Choose appropriate channels** for communication
+
+  ```rust
+  // One-shot channel for single value communication
+  async fn fetch_with_cancellation(url: &str) -> Result<String, Error> {
+      let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+
+      // Spawn task that can be cancelled
+      let fetch_handle = tokio::spawn(async move {
+          match fetch_data(url).await {
+              Ok(data) => {
+                  let _ = done_tx.send(data);
+              }
+              Err(e) => {
+                  log::error!("Fetch error: {}", e);
+                  // Channel dropped, receiver will get error
+              }
+          }
+      });
+
+      // Wait for result or cancellation
+      tokio::select! {
+          result = done_rx => {
+              Ok(result?)
+          }
+          _ = tokio::time::sleep(Duration::from_secs(5)) => {
+              // Cancel the operation
+              fetch_handle.abort();
+              Err(Error::Timeout("Request timed out".into()))
+          }
+      }
+  }
+
+  // MPSC channel for stream processing
+  async fn process_stream() -> Result<(), Error> {
+      let (tx, mut rx) = tokio::sync::mpsc::channel(100);
+
+      // Producer
+      let producer_handle = tokio::spawn(async move {
+          for i in 0..1000 {
+              if tx.send(i).await.is_err() {
+                  break;
+              }
+              tokio::time::sleep(Duration::from_millis(1)).await;
+          }
+      });
+
+      // Consumer
+      let mut count = 0;
+      while let Some(value) = rx.recv().await {
+          process_value(value).await?;
+          count += 1;
+      }
+
+      log::info!("Processed {} values", count);
+      Ok(())
+  }
+  ```
+
+- **Use connection pooling** for shared resources
+
+  ```rust
+  use deadpool_postgres::{Config, Pool, Runtime};
+
+  async fn create_db_pool() -> Result<Pool, Error> {
+      let mut cfg = Config::new();
+      cfg.host = Some("localhost".to_string());
+      cfg.dbname = Some("mydatabase".to_string());
+      cfg.user = Some("user".to_string());
+      cfg.password = Some("password".to_string());
+
+      // Create pool with connection limit
+      let pool = cfg.create_pool(Some(Runtime::Tokio1), tokio_postgres::NoTls)?;
+
+      Ok(pool)
+  }
+
+  async fn use_connection_pool(pool: &Pool) -> Result<(), Error> {
+      // Get connection from pool
+      let conn = pool.get().await?;
+
+      // Use connection for query
+      let rows = conn.query("SELECT * FROM users", &[]).await?;
+
+      // Connection returned to pool when conn is dropped
+      Ok(())
+  }
+  ```
+
+## Common mistakes
+
+- **Forgetting to poll futures**: Creating async functions but never awaiting them
+- **Blocking the runtime**: Running CPU-intensive or blocking I/O on the async runtime
+- **Holding locks across await points**: Creating deadlocks by not releasing locks before suspension
+- **Unbounded concurrency**: Spawning unlimited tasks without backpressure or limits
+- **Nested async blocks**: Creating overly complex future chains that are hard to understand
+- **Async main without runtime**: Using async/await without initializing a runtime
+- **Improper error propagation**: Not handling errors correctly in async chains
+- **Ignoring cancellation**: Not designing for task cancellation and resource cleanup
+- **Future combinators overuse**: Using too many combinators instead of clear async/await
+- **Non-Send types across await points**: Causing compiler errors by suspending with non-Send data
+
+## Ecosystem integration
+
+- **tokio**: Full-featured async runtime with time, I/O, and concurrency primitives
+- **async-std**: Alternative runtime with a standard library-like API
+- **futures**: Core abstractions and utilities for futures and streams
+- **async-trait**: Simplifies working with async methods in traits
+- **tokio-util**: Additional utilities for working with Tokio
+- **tokio-stream**: Stream utilities for Tokio
+- **tracing**: Structured, async-aware, logging and tracing
+- **async-channel**: MPMC channels for async code
+- **async-mutex**: Async-aware mutex implementation
+- **futures-util**: Utility functions for working with futures
+
+## Related rules
+
+- **Rust Error Handling**: Design error types that work well with async code
+- **Rust Memory Safety**: Understand ownership across await points
+- **Rust Concurrency**: Combine threads and async when appropriate
+- **Rust API Design**: Create ergonomic async APIs
+- **Rust Performance**: Optimize async code for efficiency
+
+By following these async programming guidelines, you'll create Rust applications that efficiently utilize system resources while maintaining readability and correctness.

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Your prime directive is to convert all of ./haystack (python code) to ./haystack-rs (rust code) for complete feature parity (to the point that it makes sense for the user) at the edge api level. The python and rust code will never interact with each other, so don't worry about making them interoperable across language.
+Your prime directive is to convert all of ./haystack (python code) to ./haystack-rust (rust code) for complete feature parity (to the point that it makes sense for the user) at the edge api level. The python and rust code will never interact with each other, so don't worry about making them interoperable across language.
 
 ## Python Codebase (Original)
 
@@ -21,7 +21,7 @@ Your prime directive is to convert all of ./haystack (python code) to ./haystack
 
 ### Setup
 
-- Create Rust code in `./haystack-rs/` directory
+- Create Rust code in `./haystack-rust/` directory
 - Maintain 100% functional equivalence with Python code
 - Port one module/component at a time, using e2e/integration tests to verify
 

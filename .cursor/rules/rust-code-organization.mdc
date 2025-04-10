@@ -1,0 +1,473 @@
+---
+title: Rust Code Organization Guidelines
+description: Guidelines for organizing Rust code and structuring Rust projects
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Code Organization and Project Structure
+
+Well-organized Rust code improves maintainability, readability, and facilitates collaboration. This rule provides guidelines for structuring your Rust projects effectively.
+
+## Module structure
+
+- **Use the module system to organize code logically** by functionality, domain, or layer
+
+  ```rust
+  // lib.rs
+  pub mod models;
+  pub mod services;
+  pub mod utils;
+  ```
+
+- **Follow the principle of encapsulation**: expose minimal public interfaces
+
+  ```rust
+  // models.rs
+  pub struct User {
+      pub id: u64,
+      pub username: String,
+      // Private fields not exposed to users of this module
+      email: String,
+      password_hash: String,
+  }
+
+  impl User {
+      // Public constructor
+      pub fn new(id: u64, username: String, email: String, password: &str) -> Self {
+          Self {
+              id,
+              username,
+              email,
+              password_hash: hash_password(password),
+          }
+      }
+
+      // Public getter for private field
+      pub fn email(&self) -> &str {
+          &self.email
+      }
+
+      // Private helper function
+      fn validate_password(&self, password: &str) -> bool {
+          verify_password(&self.password_hash, password)
+      }
+  }
+
+  // Private function used by the module
+  fn hash_password(password: &str) -> String {
+      // Implementation details
+      todo!()
+  }
+  ```
+
+- **Use visibility modifiers appropriately** to control access
+
+  ```rust
+  // Visible only within the current crate
+  pub(crate) fn internal_helper() {
+      // Implementation
+  }
+
+  // Visible only to the parent module
+  pub(super) fn parent_module_helper() {
+      // Implementation
+  }
+
+  // Visible only to a specific path
+  pub(in crate::models) fn models_helper() {
+      // Implementation
+  }
+  ```
+
+- **Keep module hierarchies flat when possible**, avoiding deep nesting
+
+  ```rust
+  // Prefer this (flat)
+  mod api {
+      pub mod v1 {}
+      pub mod v2 {}
+  }
+  mod models {}
+  mod services {}
+
+  // Rather than this (deeply nested)
+  mod api {
+      mod v1 {
+          mod handlers {
+              mod users {
+                  // Too deep!
+              }
+          }
+      }
+  }
+  ```
+
+## File organization
+
+- **Prefer one module per file** for maintainability
+
+  ```
+  src/
+  ├── models/
+  │   ├── user.rs
+  │   ├── product.rs
+  │   └── mod.rs
+  ├── services/
+  │   ├── auth.rs
+  │   ├── payments.rs
+  │   └── mod.rs
+  └── lib.rs
+  ```
+
+- **Choose a consistent module pattern** - either use `mod.rs` files or the 2018 edition style
+
+  ```rust
+  // With mod.rs style:
+  // src/models/mod.rs
+  pub mod user;
+  pub mod product;
+
+  // With 2018 edition style:
+  // src/models.rs
+  pub mod user;
+  pub mod product;
+  ```
+
+- **Organize files to reflect the logical structure** of your code
+
+  ```
+  src/
+  ├── api/              // API layer
+  │   ├── handlers.rs
+  │   └── routes.rs
+  ├── domain/           // Domain logic
+  │   ├── models.rs
+  │   └── services.rs
+  ├── infrastructure/   // External integrations
+  │   ├── database.rs
+  │   └── messaging.rs
+  └── main.rs
+  ```
+
+## Workspace organization
+
+- **For large projects, consider using a workspace** with multiple crates
+
+  ```toml
+  # Cargo.toml
+  [workspace]
+  default-members = ["crates/my-project-cli"]
+  members = [
+      "crates/my-project-cli",
+      "crates/my-project-core",
+      "crates/my-project-api",
+      "crates/my-project-common",
+  ]
+  ```
+
+## Crate design
+
+- **Separate functionality into appropriate crates** by responsibility
+- **Store all crates in a `./crates` directory** for consistent organization, including binary crates
+
+  ```
+  my-project/
+  ├── Cargo.toml                    # Workspace manifest
+  ├── crates/
+  │   ├── my-project-cli/           # Binary crate (CLI interface)
+  │   │   └── Cargo.toml
+  │   ├── my-project-core/          # Core business logic
+  │   │   └── Cargo.toml
+  │   ├── my-project-api/           # API implementation
+  │   │   └── Cargo.toml
+  │   └── my-project-common/        # Shared utilities
+  │       └── Cargo.toml
+  └── .cargo/                       # Cargo configuration
+  ```
+
+- **Use the `default-members` pattern in the workspace Cargo.toml** for binary crates
+
+  ```toml
+  # Cargo.toml (root)
+  [workspace]
+  default-members = ["crates/my-project-cli"]  # Default binary crate
+  members = [
+      "crates/my-project-cli",
+      "crates/my-project-core",
+      "crates/my-project-api",
+      "crates/my-project-common",
+  ]
+
+  [dependencies]
+  my-project-cli = { path = "crates/my-project-cli" }
+  my-project-core = { path = "crates/my-project-core" }
+  ```
+
+- **Design clear and minimal public APIs**
+
+  ```rust
+  // lib.rs
+  // Only expose what users actually need
+  pub use crate::models::{User, Product}; // Re-export specific types
+  pub use crate::errors::Error;           // Re-export error type
+  pub use crate::client::Client;          // Re-export main client
+
+  // Keep these modules private
+  mod models;
+  mod errors;
+  mod client;
+  mod utils;  // Internal utilities not exposed
+  ```
+
+- **Use feature flags to enable optional functionality**
+
+  ```toml
+  # Cargo.toml
+  [features]
+  default = ["postgres"]
+  postgres = ["dep:sqlx"]
+  sqlite = ["dep:rusqlite"]
+  tracing = ["dep:tracing"]
+  ```
+
+  ```rust
+  // In your code
+  #[cfg(feature = "postgres")]
+  pub mod postgres {
+      // Postgres-specific code
+  }
+
+  #[cfg(feature = "sqlite")]
+  pub mod sqlite {
+      // SQLite-specific code
+  }
+  ```
+
+- **Consider creating a facade crate** that re-exports from implementation crates
+
+  ```rust
+  // my-project/src/lib.rs
+  pub use my_project_core::{Core, Models};
+  pub use my_project_api::Api;
+
+  // Provide a unified entry point
+  pub fn create_app() -> App {
+      App::new()
+          .with_core(Core::new())
+          .with_api(Api::new())
+  }
+  ```
+
+## Code grouping
+
+- **Group related functions, types, and implementations together**
+
+  ```rust
+  // user.rs
+  // Type definition
+  pub struct User {
+      // fields
+  }
+
+  // Implementation on that type
+  impl User {
+      // methods
+  }
+
+  // Related free functions
+  pub fn find_users_by_role(role: Role) -> Vec<User> {
+      // implementation
+  }
+  ```
+
+- **Use traits to define behavior interfaces**
+
+  ```rust
+  // Define behavior with traits
+  pub trait Storage {
+      fn save(&self, data: &[u8]) -> Result<(), Error>;
+      fn load(&self) -> Result<Vec<u8>, Error>;
+      fn delete(&self) -> Result<(), Error>;
+  }
+
+  // Implement for different types
+  pub struct FileStorage {
+      path: PathBuf,
+  }
+
+  impl Storage for FileStorage {
+      // Implementation
+  }
+
+  pub struct MemoryStorage {
+      data: Mutex<HashMap<String, Vec<u8>>>,
+  }
+
+  impl Storage for MemoryStorage {
+      // Implementation
+  }
+  ```
+
+- **Implement traits for appropriate types**
+
+  ```rust
+  // Standard library traits
+  impl Display for User {
+      fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+          write!(f, "User({})", self.username)
+      }
+  }
+
+  impl FromStr for UserId {
+      type Err = ParseError;
+
+      fn from_str(s: &str) -> Result<Self, Self::Err> {
+          // Parse and validate user ID
+      }
+  }
+  ```
+
+- **Consider using the newtype pattern** to add behavior to existing types
+
+  ```rust
+  // Newtype to add domain-specific behavior
+  pub struct UserId(u64);
+
+  impl UserId {
+      pub fn new(id: u64) -> Self {
+          Self(id)
+      }
+
+      pub fn is_system_user(&self) -> bool {
+          self.0 < 100 // System users have IDs below 100
+      }
+  }
+  ```
+
+## Documentation
+
+- **Document all public items** with rustdoc comments
+
+  ```rust
+  /// Represents a user in the system
+  ///
+  /// Users can be either regular users or administrators, and
+  /// have different permissions based on their role.
+  pub struct User {
+      /// Unique identifier for the user
+      pub id: UserId,
+      /// Username for display and login
+      pub username: String,
+      /// The user's assigned role
+      pub role: Role,
+  }
+
+  impl User {
+      /// Creates a new user with the given details
+      ///
+      /// # Arguments
+      ///
+      /// * `id` - Unique identifier for the user
+      /// * `username` - The user's username
+      /// * `role` - The initial role for the user
+      ///
+      /// # Returns
+      ///
+      /// A new `User` instance
+      pub fn new(id: UserId, username: String, role: Role) -> Self {
+          Self { id, username, role }
+      }
+  }
+  ```
+
+- **Include examples in documentation** that can be tested
+
+  ````rust
+  /// Updates a user's role
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use myapp::models::{User, UserId, Role};
+  ///
+  /// let mut user = User::new(UserId::new(1), "alice".to_string(), Role::Member);
+  /// user.update_role(Role::Admin);
+  /// assert_eq!(user.role, Role::Admin);
+  /// ```
+  pub fn update_role(&mut self, new_role: Role) {
+      self.role = new_role;
+  }
+  ````
+
+- **Use module-level documentation** to explain design decisions
+
+  ```rust
+  //! User management module
+  //!
+  //! This module contains types and functions for managing users,
+  //! their authentication, and authorization. The design follows
+  //! a domain-driven approach where:
+  //!
+  //! - `User` is the central entity
+  //! - `Role` determines permissions
+  //! - Authentication is handled via JWT tokens
+  //!
+  //! # Architecture
+  //!
+  //! The user system follows this flow:
+  //!
+  //! 1. Registration through `register_user()`
+  //! 2. Authentication with `authenticate()`
+  //! 3. Authorization checks with `User::can_access()`
+  ```
+
+- **Document the relationship between components**
+
+  ```rust
+  /// The central repository for User operations
+  ///
+  /// This struct provides the primary interface for user-related
+  /// operations and coordinates between:
+  ///
+  /// - `UserDatabase` - For persistence
+  /// - `AuthService` - For authentication
+  /// - `PermissionValidator` - For authorization checks
+  ///
+  /// See the module-level documentation for the overall architecture.
+  pub struct UserRepository {
+      // fields
+  }
+  ```
+
+## Common mistakes
+
+- **Excessive public APIs**: Exposing too many implementation details that should be private
+- **Too many small crates**: Creating fine-grained crates that lead to dependency management headaches
+- **Inconsistent organization**: Mixing different module patterns or file structures
+- **Deep module hierarchies**: Creating deeply nested modules that make the code difficult to navigate
+- **Poor re-exports**: Not providing convenient public APIs through strategic re-exports
+- **Circular dependencies**: Creating module cycles that complicate compilation and understanding
+- **Missing documentation**: Not explaining the purpose and usage of modules, types, and functions
+- **Monolithic files**: Creating very large files instead of breaking them down into modules
+- **Inappropriate visibility**: Using `pub` when items should be restricted to the crate or module
+
+## Ecosystem integration
+
+- **cargo-modules**: Visualize and analyze your crate's module structure
+- **rustdoc**: Generate documentation that explains your code organization
+- **cargo-rdme**: Keep README and library documentation in sync
+- **cargo-expand**: Inspect what the module system actually produces
+- **cargo-edit**: Manage dependencies and features more easily
+- **cargo-workspaces**: Work with Cargo workspaces efficiently
+- **cargo-diet**: Reduce the size of your crate by removing unnecessary files
+
+## Related rules
+
+- **Rust API Design**: Create consistent public interfaces for your code
+- **Rust Newtype Pattern**: Use newtypes for type safety and semantically rich types
+- **Rust Documentation**: Write effective documentation for your code
+- **Rust Testing**: Structure tests to reflect your code organization
+- **Rust Error Handling**: Design error types that work across module boundaries
+
+By following these guidelines, you'll create well-organized Rust projects that are easier to understand, maintain, and extend over time.

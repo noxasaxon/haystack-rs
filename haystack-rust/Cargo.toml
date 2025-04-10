@@ -1,5 +1,5 @@
 [package]
-name = "haystack-rs"
+name = "haystack-rust"
 version = "0.1.0"
 edition = "2021"
 authors = ["Haystack Contributors"]

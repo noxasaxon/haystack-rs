@@ -1,0 +1,72 @@
+---
+title: Rust Type Consistency Guidelines
+description: Guidelines for maintaining type consistency across Rust projects
+globs: ["**/*.rs"]
+alwaysApply: false
+tags:
+  - rust
+  - type-safety
+---
+
+# Rust Type Consistency Guidelines
+
+## Introduction
+
+This rule provides guidelines for maintaining type consistency across Rust projects. Consistent type usage promotes safety, prevents subtle bugs, and makes code easier to understand and maintain.
+
+## Guidelines
+
+1. **Type Naming Conventions**:
+   - Use clear, descriptive names that convey purpose
+   - Follow Rust conventions: CamelCase for types, snake_case for variables/functions
+   - Be consistent with suffixes (e.g., always use `Error` for error types)
+
+2. **Type Consistency Across Modules**:
+   - Use the same type definitions across the codebase
+   - Avoid duplicate type definitions with slightly different names or structures
+   - If you rename a type, update all references to avoid confusing errors
+
+3. **Type Compatibility**:
+   - Pay attention to trait bounds when using generic types
+   - Verify that types satisfy required trait bounds before use
+   - Use `where` clauses to clearly specify constraints 
+
+4. **Type Safety**:
+   - Leverage Rust's type system to prevent errors at compile time
+   - Use newtypes to distinguish semantically different values of the same underlying type
+   - Use `enum` for representing values that can be one of several distinct variants
+
+5. **Type Conversions**:
+   - Implement `From`/`Into` traits for clean conversions
+   - Be careful with `as` casts - they can lead to silent truncation or unexpected behavior
+   - Prefer `.into()` or `.try_into()` for safer conversions
+
+6. **Type Aliases**:
+   - Use type aliases to simplify complex signatures:
+     ```rust
+     type Result<T> = std::result::Result<T, MyError>;
+     ```
+   - Document type aliases to clarify their purpose
+
+7. **Generic Types**:
+   - Use generics to create flexible, reusable code
+   - Consider adding appropriate trait bounds to ensure functionality
+   - Use `impl Trait` syntax for simpler function signatures when appropriate
+
+## Implementation
+
+When managing types:
+
+1. Run `cargo check` or `cargo build` after changing or adding types
+2. Pay attention to type errors during compilation - they often reveal deeper design issues
+3. Use IDE features to navigate to type definitions when unsure
+4. Review type usage across the codebase during refactoring
+
+## Rationale
+
+Good type consistency:
+- Prevents subtle bugs that occur from type mismatches
+- Makes code easier to understand and reason about
+- Leverages Rust's compile-time guarantees
+- Improves refactoring safety
+- Enhances API clarity and usability 

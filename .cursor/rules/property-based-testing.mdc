@@ -1,0 +1,105 @@
+---
+title: Property-Based Testing Guidelines
+description: Guidelines for prioritizing property-based testing in Rust code
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Property-Based Testing Guidelines
+
+Property-based testing should be preferred whenever applicable for Rust code. This approach provides more thorough test coverage by automatically generating test cases.
+
+## When to Use Property-Based Testing
+
+- **Always prefer property-based tests** over example-based tests when:
+  - Testing functions that should work for a wide range of inputs
+  - Validating mathematical properties or invariants
+  - Testing data transformation or serialization logic
+  - Testing state machines or complex workflows
+  - Verification of sorting, filtering, or other algorithms
+  - Validating domain model constraints and business rules
+
+## Implementation Guidelines
+
+- Use `proptest` or `quickcheck` crates for implementing property-based tests
+- Consider `fake` crate for generating realistic random test data
+- Define clear properties that your code must satisfy under all valid inputs
+- Structure tests to verify invariants and logical properties rather than specific examples
+- Use property combinators to generate complex test data that matches your domain
+- For domain types, implement the `Arbitrary` trait to generate valid instances automatically
+
+## Writing Effective Properties
+
+- Focus on invariants that should always hold true
+- Test roundtrip properties (e.g., serialize → deserialize should equal original)
+- Verify that operations maintain expected relationships between inputs and outputs
+- Test algebraic properties when applicable (commutativity, associativity, idempotence)
+- Ensure properties cover both common cases and edge cases
+
+## Test Data Generation Strategies
+
+- For complex domain types, consider implementing custom `Arbitrary` implementations:
+  ```rust
+  impl Arbitrary for MyType {
+      fn arbitrary<G: Gen>(g: &mut G) -> Self {
+          // Generate valid instances of your type
+      }
+  }
+  ```
+- Combine the `fake` crate with `quickcheck` to generate realistic test data:
+  ```rust
+  // Use fake's generators with quickcheck
+  impl Arbitrary for Email {
+      fn arbitrary<G: Gen>(g: &mut G) -> Self {
+          let email = fake::faker::internet::en::SafeEmail().fake::<String>();
+          Email::parse(email).expect("Generated a valid email")
+      }
+  }
+  ```
+- Focus on generating both valid and invalid inputs to test validation logic
+
+## Choosing Between quickcheck and proptest
+
+- Use `quickcheck` when:
+
+  - You need simple property tests with minimal setup
+  - You want to implement the `Arbitrary` trait for automatic test case generation
+  - Integration with other testing frameworks is important
+
+- Use `proptest` when:
+  - You need more control over test case generation
+  - You want better shrinking behavior for failing test cases
+  - You need to test complex state machines or workflows
+  - You prefer explicit strategies over trait implementations
+
+## Example Property Tests
+
+```rust
+// Example with proptest
+proptest! {
+    // Testing a sort function maintains the same elements
+    fn sort_preserves_elements(vec: Vec<i32>) {
+        let mut sorted = vec.clone();
+        sorted.sort();
+
+        // The property: sorting preserves the same set of elements
+        prop_assert_eq!(vec.iter().sum::<i32>(), sorted.iter().sum::<i32>());
+        prop_assert_eq!(vec.len(), sorted.len());
+    }
+}
+
+// Example with quickcheck for domain validation
+#[quickcheck]
+fn valid_emails_are_parsed_successfully(email: ValidEmailGenerator) -> bool {
+    SubscriberEmail::parse(email.0).is_ok()
+}
+```
+
+## Integrate with Other Testing Approaches
+
+- Use property tests alongside unit tests, not as a replacement
+- Apply property testing particularly for complex logic with many potential edge cases
+- Consider example-based tests for specific scenarios that are important to document
+- Use property tests for broad coverage and example tests for regression cases
+
+By prioritizing property-based testing, you'll catch more edge cases, have more robust code, and gain higher confidence in your implementations.

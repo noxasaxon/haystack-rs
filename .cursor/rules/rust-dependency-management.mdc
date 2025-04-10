@@ -1,0 +1,455 @@
+---
+title: Rust Dependency Management Guidelines
+description: Guidelines for effectively managing dependencies in Rust projects
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Dependency Management Best Practices
+
+Proper dependency management is crucial for building maintainable, secure, and efficient Rust applications. These guidelines will help you manage dependencies effectively throughout your project's lifecycle.
+
+## Cargo.toml structure
+
+- **Organize your manifest** in a consistent format
+
+  ```toml
+  [package]
+  name = "my-project"
+  version = "0.1.0"
+  edition = "2024"
+  authors = ["Your Name <your.email@example.com>"]
+  description = "A concise description of your project"
+  license = "MIT OR Apache-2.0"
+  repository = "https://github.com/username/my-project"
+
+  [dependencies]
+  # Runtime dependencies listed alphabetically
+  serde = { version = "1.0", features = ["derive"] }
+  tokio = { version = "1", features = ["full"] }
+
+  [dev-dependencies]
+  # Test-only dependencies
+  mockall = "0.11"
+  proptest = "1.0"
+
+  [build-dependencies]
+  # Build script dependencies
+  cc = "1.0"
+
+  [features]
+  # Feature flags
+  default = ["std"]
+  std = []
+  ```
+
+- **Use proper semantic versioning** constraints
+
+  ```toml
+  [dependencies]
+  # Exact version - brittle but reproducible
+  exact-crate = "=1.2.3"
+
+  # Compatible with API - most common (^1.2.3)
+  compatible-crate = "1.2.3"
+
+  # Minimum version but compatible API
+  minimum-crate = ">=1.2.3, <2.0.0"
+
+  # Latest patch version (1.2.*)
+  patch-crate = "~1.2.3"
+
+  # Any version - avoid in production!
+  any-crate = "*"
+  ```
+
+- **Split dependencies appropriately** by their usage
+
+  ```toml
+  [dependencies]
+  # Runtime dependencies - used in your actual code
+  serde = "1.0"
+
+  [dev-dependencies]
+  # Testing dependencies - not included in your binary
+  criterion = "0.4"
+  mockall = "0.11"
+
+  [build-dependencies]
+  # Used only during the build process
+  bindgen = "0.63"
+  ```
+
+## Version pinning strategies
+
+- **Pin dependencies for reproducible builds**
+
+  ```toml
+  # Cargo.toml - Use explicit versions
+  [dependencies]
+  tokio = "1.25.0" # Explicit version
+  serde = "1.0.152" # Explicit version
+  ```
+
+  ```toml
+  # Use Cargo.lock for applications
+  # Example command to update only specific dependencies
+  # $ cargo update -p tokio --precise 1.25.0
+  ```
+
+- **Use version ranges for libraries**
+
+  ```toml
+  # For libraries, use compatible versioning
+  [dependencies]
+  tokio = "1" # Compatible with any 1.x version
+  serde = "1.0" # Compatible with any 1.0.x version
+  ```
+
+- **Consider cargo-lock2hash for deterministic builds**
+
+  ```
+  # Generate a hash of your Cargo.lock file to ensure consistency
+  $ cargo lock2hash > Cargo.lock.hash
+
+  # Verify the hash hasn't changed
+  $ cargo lock2hash --verify Cargo.lock.hash
+  ```
+
+## Feature flags
+
+- **Design feature flags** for optional functionality
+
+  ```toml
+  [features]
+  default = ["std", "json"]
+  std = ["serde/std"]
+  json = ["dep:serde_json"]
+  postgres = ["dep:sqlx", "sqlx?/postgres"]
+  sqlite = ["dep:sqlx", "sqlx?/sqlite"]
+  ```
+
+- **Use conditional compilation** with features
+
+  ```rust
+  // Only compile this code when the "postgres" feature is enabled
+  #[cfg(feature = "postgres")]
+  pub mod postgres {
+      use sqlx::postgres::PgPool;
+
+      pub async fn connect(url: &str) -> Result<PgPool, sqlx::Error> {
+          PgPool::connect(url).await
+      }
+  }
+
+  // Include different code based on feature combinations
+  #[cfg(all(feature = "std", feature = "json"))]
+  pub fn parse_json_file(path: &str) -> Result<Value, Error> {
+      let data = std::fs::read_to_string(path)?;
+      serde_json::from_str(&data)
+  }
+  ```
+
+- **Document your features** clearly
+
+  ```rust
+  //! # Feature flags
+  //!
+  //! - `std`: Enables standard library integration (default)
+  //! - `json`: Enables JSON serialization/deserialization (default)
+  //! - `postgres`: Enables PostgreSQL database support
+  //! - `sqlite`: Enables SQLite database support
+  //!
+  //! Note: Database features are mutually compatible.
+  ```
+
+- **Use weak dependencies** for optional features
+
+  ```toml
+  [dependencies]
+  # Only included when the "wasm" feature is enabled
+  wasm-bindgen = { version = "0.2", optional = true }
+
+  [features]
+  wasm = ["dep:wasm-bindgen"]
+  ```
+
+## Security considerations
+
+- **Use cargo-audit to check for vulnerabilities**
+
+  ```bash
+  # Install cargo-audit
+  $ cargo install cargo-audit
+
+  # Check your dependencies for known vulnerabilities
+  $ cargo audit
+
+  # Ignore specific advisories if necessary
+  $ cargo audit --ignore RUSTSEC-2021-0000
+  ```
+
+- **Pin dependency versions** for security-critical code
+
+  ```toml
+  [dependencies]
+  # Pin exact versions in security-critical applications
+  crypto-lib = "=1.2.3"
+  ```
+
+- **Use cargo-deny for policy enforcement**
+
+  ```toml
+  # deny.toml
+  [licenses]
+  allow = [
+      "MIT",
+      "Apache-2.0",
+  ]
+  deny = [
+      "GPL-3.0",
+  ]
+
+  [bans]
+  # Crates that should not be used
+  deny = [
+      { name = "unsafe-crypto" },
+  ]
+  ```
+
+- **Consider reviewing dependencies** before adding them
+
+  ```bash
+  # View full dependency tree
+  $ cargo tree
+
+  # Check code size contribution
+  $ cargo bloat --release
+  ```
+
+## Workspace management
+
+- **Organize multi-crate projects** as workspaces with all crates in a `./crates` directory
+
+  ```toml
+  # Root Cargo.toml
+  [workspace]
+  default-members = ["crates/cli"]  # Default binary crate
+  members = [
+      "crates/core",
+      "crates/cli",
+      "crates/web",
+      "crates/common",
+      "crates/macros",
+  ]
+
+  # Set shared dependencies for all workspace members
+  [workspace.dependencies]
+  serde = { version = "1.0", features = ["derive"] }
+  tokio = { version = "1", features = ["full"] }
+  tracing = "0.1"
+
+  # Specify a resolver version for the workspace
+  resolver = "2"
+  ```
+
+- **Share dependencies across workspace members**
+
+  ```toml
+  # In member crate Cargo.toml (e.g., crates/cli/Cargo.toml)
+  [dependencies]
+  # Use the shared dependency from [workspace.dependencies]
+  serde.workspace = true
+  tokio.workspace = true
+
+  # Local dependencies from the workspace
+  my-project-core = { path = "../core" }
+  ```
+
+- **Use virtual manifests** for clean organization
+
+  ```
+  my-project/
+  ├── Cargo.toml     # Virtual manifest (workspace definition only)
+  ├── crates/
+  │   ├── core/
+  │   │   └── Cargo.toml # Core crate manifest
+  │   ├── cli/
+  │   │   └── Cargo.toml # CLI crate manifest
+  │   └── web/
+  │       └── Cargo.toml # Web crate manifest
+  ```
+
+- **Use cargo workspaces commands**
+
+  ```bash
+  # Build all workspace members
+  $ cargo build --workspace
+
+  # Run tests for all workspace members
+  $ cargo test --workspace
+
+  # Clean all workspace members
+  $ cargo clean --workspace
+  ```
+
+## Dependency optimization
+
+- **Trim unnecessary dependencies** to reduce bloat
+
+  ```bash
+  # Analyze your dependency tree
+  $ cargo tree
+
+  # Check for unused dependencies
+  $ cargo install cargo-udeps
+  $ cargo udeps
+
+  # Find duplicated dependencies
+  $ cargo tree --duplicate
+  ```
+
+- **Minimize feature creep** by being selective
+
+  ```toml
+  [dependencies]
+  # Only enable the specific features you need
+  tokio = { version = "1", features = ["rt", "macros", "time"], default-features = false }
+  serde = { version = "1.0", features = ["derive"], default-features = false }
+  ```
+
+- **Avoid deep dependency chains** when possible
+
+  ```bash
+  # Analyze dependency depths
+  $ cargo tree --depth=3
+
+  # Identify heavy dependencies
+  $ cargo tree -e features
+  ```
+
+- **Consider size optimization** for specific targets
+
+  ```toml
+  # In .cargo/config.toml
+  [target.'cfg(target_arch = "wasm32")'.dependencies]
+  wee_alloc = "0.4"
+
+  [profile.release]
+  lto = true
+  codegen-units = 1
+  opt-level = "z"  # Optimize for size
+  strip = true     # Strip symbols
+  ```
+
+## Vendoring dependencies
+
+- **Vendor dependencies for offline builds**
+
+  ```bash
+  # Vendor all dependencies into vendor/ directory
+  $ cargo vendor
+
+  # Create configuration for using vendored dependencies
+  $ cargo vendor > .cargo/config.toml
+  ```
+
+- **Configure vendored dependencies**
+
+  ```toml
+  # .cargo/config.toml
+  [source.crates-io]
+  replace-with = "vendored-sources"
+
+  [source.vendored-sources]
+  directory = "vendor"
+  ```
+
+- **Consider git submodules** for specific dependencies
+
+  ```toml
+  [dependencies]
+  # Point directly to a repository with a specific revision
+  my-lib = { git = "https://github.com/username/my-lib", rev = "abc123" }
+  ```
+
+## Semantic versioning and publishing
+
+- **Follow semantic versioning** when publishing
+
+  ```
+  MAJOR.MINOR.PATCH
+
+  - MAJOR: Breaking API changes
+  - MINOR: New features, no breaking changes
+  - PATCH: Bug fixes, no breaking changes
+  ```
+
+- **Document version changes** in a changelog
+
+  ```markdown
+  # Changelog
+
+  ## 0.2.0 (2023-03-15)
+
+  ### Added
+
+  - New feature X
+  - Support for Y
+
+  ### Changed
+
+  - Updated dependency Z to 1.0
+
+  ### Fixed
+
+  - Bug in function A
+
+  ## 0.1.0 (2023-01-10)
+
+  - Initial release
+  ```
+
+- **Test version compatibility** before publishing
+
+  ```bash
+  # Check your crate before publishing
+  $ cargo publish --dry-run
+
+  # Verify with cargo-semver-checks
+  $ cargo install cargo-semver-checks
+  $ cargo semver-checks
+  ```
+
+## Common mistakes
+
+- **Overly restrictive version pinning**: Using exact versions for all dependencies in libraries
+- **Dependency sprawl**: Including too many dependencies for minimal functionality
+- **Feature explosion**: Enabling all features for dependencies when only a few are needed
+- **Ignoring updates**: Not periodically updating dependencies for security fixes
+- **Circular dependencies**: Creating cyclical dependency relationships
+- **Unnecessary re-exports**: Re-exporting every dependency's types
+- **Inadequate testing across versions**: Not testing with minimum supported versions
+- **Forgetting to specify edition**: Not declaring the Rust edition in Cargo.toml
+- **Mixing wildcard versions**: Using "\*" versions in production code
+
+## Ecosystem integration
+
+- **cargo-update**: Manage dependency updates
+- **cargo-outdated**: Check for outdated dependencies
+- **cargo-audit**: Security auditing for dependencies
+- **cargo-deny**: Policy enforcement for dependencies
+- **cargo-edit**: Add, remove, and upgrade dependencies
+- **cargo-udeps**: Find unused dependencies
+- **cargo-bloat**: Analyze code size contributions
+- **cargo-semver-checks**: Verify version compatibility
+
+## Related rules
+
+- **Rust Code Organization**: Structuring your code across multiple crates
+- **Rust API Design**: Creating stable APIs that follow good versioning practices
+- **Rust Performance**: Optimizing dependencies for better runtime performance
+- **Rust Security**: Ensuring dependencies don't introduce security risks
+- **Rust Testing**: Testing strategies that include dependency verification
+
+By following these dependency management practices, you'll create Rust projects that are more maintainable, secure, and efficient throughout their lifecycle.

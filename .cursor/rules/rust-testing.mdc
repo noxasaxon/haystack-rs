@@ -1,0 +1,55 @@
+---
+title: Rust Testing Guidelines
+description: Guidelines for effectively testing Rust code
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Testing Guidelines
+
+Thorough testing is crucial for reliable Rust code. Follow these testing guidelines:
+
+## Unit testing
+
+- Write unit tests using the built-in `#[test]` attribute
+- Place tests in a `tests` module annotated with `#[cfg(test)]`
+- Use `assert!`, `assert_eq!`, and `assert_ne!` macros appropriately
+- Test public interfaces thoroughly and private functions when necessary
+- Aim for high test coverage, especially for complex logic
+
+## Integration testing
+
+- Create integration tests in a separate `tests` directory
+- Verify that components work correctly together
+- Test APIs as a client would use them
+- Consider using `#[test]` and `#[bench]` attributes for comprehensive testing
+
+## Property-based testing (PREFERRED)
+
+- **Always prefer property-based testing** whenever applicable (see property-based-testing.md rule)
+- Use tools like `proptest` or `quickcheck` for property-based testing
+- Define properties your code should satisfy and let the framework find edge cases
+- Test with a wide range of inputs including boundary cases
+- Ensure tests are deterministic and reproducible
+
+## Mock objects and test doubles
+
+- Use traits and generics to make code testable with mock implementations
+- Consider crates like `mockall` for creating mock objects
+- Inject dependencies to facilitate testing with test doubles
+- Isolate external dependencies for deterministic testing
+
+## Test organization
+
+- Structure tests to mirror the code they're testing
+- Use descriptive test names that indicate what's being tested
+- Separate test setup, execution, and verification phases
+- Avoid test interdependence; each test should stand alone
+
+## Documentation tests
+
+- Include examples in documentation that serve as tests
+- Ensure documentation examples are correct and up-to-date
+- Use documentation tests to demonstrate API usage
+
+By following these practices, you'll create a robust test suite that catches bugs early and facilitates refactoring with confidence.

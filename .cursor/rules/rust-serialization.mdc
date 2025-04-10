@@ -1,0 +1,286 @@
+---
+title: Rust Serialization Guidelines
+description: Guidelines for effectively implementing serialization and deserialization in Rust
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Serialization and Deserialization Best Practices
+
+Proper serialization and deserialization is essential for data persistence, network communication, and interoperability. Rust's ecosystem provides powerful tools for handling these tasks safely and efficiently.
+
+## Core principles
+
+- **Type safety first**: Use strong typing for serialized data
+- **Validation at deserialization time**: Validate data as it's parsed
+- **Format independence**: Separate data models from specific formats
+- **Performance awareness**: Choose appropriate formats for your needs
+- **Error handling**: Provide clear error messages for serialization failures
+
+## Using Serde: The standard solution
+
+[Serde](mdc:https:/serde.rs) is the de-facto standard for serialization in Rust, supporting many formats with a unified API.
+
+### Basic usage
+
+```rust
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize, Debug)]
+struct User {
+    id: u64,
+    name: String,
+    email: String,
+    active: bool,
+}
+
+// Serialization
+let user = User {
+    id: 1,
+    name: "Alice".to_string(),
+    email: "alice@example.com".to_string(),
+    active: true,
+};
+
+// To JSON
+let json = serde_json::to_string(&user)?;
+
+// From JSON
+let deserialized: User = serde_json::from_str(&json)?;
+```
+
+### Format-agnostic serialization
+
+```rust
+// Generic function works with any serde format
+fn save_data<T: Serialize, W: Write>(data: &T, writer: W) -> Result<(), Error> {
+    // Could use JSON, TOML, YAML, MessagePack, etc.
+    serde_json::to_writer(writer, data)?;
+    Ok(())
+}
+
+// Similarly for deserialization
+fn load_data<T: DeserializeOwned, R: Read>(reader: R) -> Result<T, Error> {
+    serde_json::from_reader(reader)
+}
+```
+
+## Customizing serialization and deserialization
+
+### Attribute-based customization
+
+```rust
+#[derive(Serialize, Deserialize)]
+struct ServerConfig {
+    #[serde(rename = "hostName")]
+    host: String,
+
+    #[serde(rename = "port")]
+    port: u16,
+
+    #[serde(default)]
+    workers: usize,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tls_config: Option<TlsConfig>,
+
+    #[serde(skip)]
+    runtime_data: std::marker::PhantomData<()>,
+}
+```
+
+### Custom serialization logic
+
+```rust
+#[derive(Serialize, Deserialize)]
+struct Timestamp {
+    #[serde(
+        serialize_with = "serialize_datetime",
+        deserialize_with = "deserialize_datetime"
+    )]
+    time: DateTime<Utc>,
+}
+
+fn serialize_datetime<S>(date: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let s = date.to_rfc3339();
+    serializer.serialize_str(&s)
+}
+
+fn deserialize_datetime<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    DateTime::parse_from_rfc3339(&s)
+        .map(|dt| dt.with_timezone(&Utc))
+        .map_err(serde::de::Error::custom)
+}
+```
+
+### Complex validation during deserialization
+
+```rust
+#[derive(Deserialize)]
+struct Email(String);
+
+impl<'de> Deserialize<'de> for Email {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if !is_valid_email(&s) {
+            return Err(serde::de::Error::custom("invalid email format"));
+        }
+        Ok(Email(s))
+    }
+}
+```
+
+## Format-specific considerations
+
+### JSON
+
+```rust
+// Pretty-printing
+let pretty_json = serde_json::to_string_pretty(&data)?;
+
+// Handling unknown fields
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StrictConfig {
+    // Fields...
+}
+
+// Working with dynamic JSON
+use serde_json::Value;
+let dynamic: Value = serde_json::from_str(json_string)?;
+let name = dynamic["name"].as_str().unwrap_or("default");
+```
+
+### TOML
+
+```rust
+// For configuration files
+let config: Config = toml::from_str(&toml_string)?;
+
+// Tables and inline tables
+#[derive(Serialize)]
+struct Database {
+    host: String,
+    port: u16,
+}
+
+#[derive(Serialize)]
+struct Config {
+    database: Database,
+}
+```
+
+### Binary formats
+
+```rust
+// MessagePack for compact binary serialization
+let binary = rmp_serde::to_vec(&data)?;
+let deserialized: MyData = rmp_serde::from_slice(&binary)?;
+
+// Bincode for Rust-specific binary format
+let encoded = bincode::serialize(&data)?;
+let decoded: MyData = bincode::deserialize(&encoded)?;
+```
+
+## Common patterns
+
+### Versioned serialization
+
+```rust
+#[derive(Serialize, Deserialize)]
+struct UserV2 {
+    id: u64,
+    name: String,
+    email: String,
+    active: bool,
+    #[serde(default)]
+    roles: Vec<String>, // New in V2
+}
+
+// Handling old versions
+fn load_user(data: &[u8]) -> Result<UserV2, Error> {
+    let result: Result<UserV2, _> = serde_json::from_slice(data);
+    if result.is_ok() {
+        return Ok(result.unwrap());
+    }
+
+    // Try loading as V1 and convert
+    let v1: UserV1 = serde_json::from_slice(data)?;
+    Ok(UserV2 {
+        id: v1.id,
+        name: v1.name,
+        email: v1.email,
+        active: v1.active,
+        roles: vec![], // Default for V1 conversion
+    })
+}
+```
+
+### Tagged enums
+
+```rust
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type", content = "data")]
+enum Message {
+    Text(String),
+    UserJoined { id: u64, name: String },
+    UserLeft { id: u64 },
+}
+
+// Produces JSON like:
+// {"type":"Text","data":"Hello, world"}
+// {"type":"UserJoined","data":{"id":1,"name":"Alice"}}
+```
+
+### Partial deserialization
+
+```rust
+// Only parse what you need
+#[derive(Deserialize)]
+struct UserIdOnly {
+    id: u64,
+}
+
+// Just extract the ID from a full user JSON
+let id_only: UserIdOnly = serde_json::from_str(full_user_json)?;
+let id = id_only.id;
+```
+
+## Common mistakes
+
+- **Forgetting field defaults**: Not using `#[serde(default)]` for backward compatibility
+- **Manual implementations**: Implementing `Serialize`/`Deserialize` by hand when derives suffice
+- **Ignoring security**: Not validating external data during deserialization
+- **Performance issues**: Choosing inefficient formats for performance-critical paths
+- **Missing error handling**: Not properly handling deserialization errors
+- **Inconsistent versioning**: Not maintaining compatibility between versions
+
+## Ecosystem integration
+
+- **serde_json**: JSON serialization
+- **serde_yaml**: YAML serialization
+- **toml**: TOML serialization
+- **rmp_serde**: MessagePack serialization
+- **bincode**: Efficient binary format
+- **csv**: CSV parsing and generation
+- **serde_with**: Additional helpers for custom serialization
+- **serde_path_to_error**: Better error messages with paths
+- **typetag**: Trait object serialization
+
+## Related rules
+
+- **Rust Error Handling**: Properly handle serialization errors
+- **Rust API Design**: Design serializable types with good APIs
+- **Rust Memory Safety**: Avoid unsafe code in serialization
+
+By following these best practices, you'll create serialization code that is robust, maintainable, and performant while avoiding common pitfalls.

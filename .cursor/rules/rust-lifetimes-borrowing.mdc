@@ -1,0 +1,228 @@
+---
+title: Rust Lifetimes and Borrowing Guidelines
+description: Guidelines for effective management of lifetimes and borrowing in Rust code
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Lifetimes and Borrowing Guidelines
+
+Rust's borrow checker and lifetime system are fundamental to its memory safety guarantees. Understanding and using them effectively is key to writing idiomatic Rust code.
+
+## Fundamental borrowing rules
+
+- **Single mutable reference XOR multiple immutable references**: At any given time, you can have either:
+  - One mutable reference (`&mut T`)
+  - Any number of immutable references (`&T`)
+- **References must always be valid**: References cannot outlive the data they refer to
+- **References must be used according to their variance**: Immutable references are covariant, mutable references are invariant
+
+## Lifetime annotations
+
+### When to use explicit lifetime annotations
+
+- **Multiple references in structs**: When a struct holds multiple references
+
+  ```rust
+  struct Excerpt<'a> {
+      content: &'a str,
+      metadata: &'a str,
+  }
+  ```
+
+- **Functions returning references**: When returning references derived from parameters
+
+  ```rust
+  fn longest<'a>(s1: &'a str, s2: &'a str) -> &'a str {
+      if s1.len() > s2.len() { s1 } else { s2 }
+  }
+  ```
+
+- **Lifetime bounds on generics**: When constraining generic parameters by lifetimes
+  ```rust
+  fn validate<'a, T>(value: &'a T, validator: &dyn Fn(&T) -> bool) -> &'a T
+  where T: Debug + 'a {
+      assert!(validator(value), "{:?} failed validation", value);
+      value
+  }
+  ```
+
+### When NOT to use explicit lifetime annotations
+
+- **Elided lifetimes**: The compiler infers many simple cases
+
+  ```rust
+  // These are equivalent:
+  fn first_word(s: &str) -> &str { /* ... */ }
+  fn first_word<'a>(s: &'a str) -> &'a str { /* ... */ }
+  ```
+
+- **Self-contained functions**: When references don't leave the function
+  ```rust
+  fn process(data: &[i32]) -> usize {
+      // No lifetime annotation needed as we're returning a value, not a reference
+      data.iter().filter(|&x| *x > 0).count()
+  }
+  ```
+
+## Lifetime elision rules
+
+Rust applies three rules to automatically infer lifetimes:
+
+1. **Each input parameter gets its own lifetime**: `fn f(x: &str, y: &str)` becomes `fn f<'a, 'b>(x: &'a str, y: &'b str)`
+2. **If there's exactly one input lifetime, it's assigned to all outputs**: `fn f(x: &str) -> &str` becomes `fn f<'a>(x: &'a str) -> &'a str`
+3. **If there are multiple input lifetimes but one is `&self` or `&mut self`, that lifetime is assigned to all outputs**: `fn f(&self, x: &str) -> &str` becomes `fn f<'a, 'b>(&'a self, x: &'b str) -> &'a str`
+
+## Advanced lifetime patterns
+
+### Lifetime bounds
+
+```rust
+// T must live at least as long as 'a
+fn process<'a, T: 'a>(value: &'a T) {}
+
+// Higher-ranked trait bounds
+fn transform<F>(f: F) -> impl FnMut(i32) -> i32
+where
+    F: for<'a> Fn(&'a i32) -> i32,
+{
+    // Implementation
+}
+```
+
+### Static lifetimes
+
+```rust
+// String literal with 'static lifetime
+const GLOBAL: &'static str = "Hello, world!";
+
+// Returning static references
+fn get_static_str() -> &'static str {
+    "This string lives for the entire program"
+}
+```
+
+### Lifetime subtyping
+
+```rust
+struct Context<'a>(&'a str);
+
+// 's must live at least as long as 'c
+fn parse_context<'c, 's: 'c>(context: &'c Context<'s>) -> &'c str {
+    context.0
+}
+```
+
+## Common borrowing patterns
+
+### Temporary borrowing
+
+```rust
+let mut data = vec![1, 2, 3];
+
+// Scope-limited borrow
+{
+    let slice = &data[..];
+    // Use slice...
+} // slice's borrow ends here
+
+// Can now mutably borrow
+data.push(4);
+```
+
+### Split borrows
+
+```rust
+let mut v = vec![1, 2, 3, 4, 5];
+
+// Split at an index to mutably borrow disjoint slices
+let (left, right) = v.split_at_mut(2);
+
+// Can mutate both independently
+left[0] = 10;
+right[0] = 20;
+```
+
+### Interior mutability
+
+```rust
+use std::cell::RefCell;
+
+let data = RefCell::new(vec![1, 2, 3]);
+
+// Multiple mutable borrows (checked at runtime)
+{
+    let mut first_borrow = data.borrow_mut();
+    first_borrow.push(4);
+} // first_borrow is dropped, releasing the mutable borrow
+
+let second_borrow = data.borrow_mut();
+```
+
+## Common mistakes
+
+- **Dangling references**: Creating references that outlive their data
+
+  ```rust
+  // Incorrect:
+  fn return_dangling() -> &str {
+      let s = String::from("hello");
+      &s // Error: returns a reference to data owned by the current function
+  }
+  ```
+
+- **Fighting the borrow checker**: Using unsafe or complex workarounds when simpler solutions exist
+
+  ```rust
+  // Better to refactor than to use unsafe:
+  let mut data = vec![1, 2, 3];
+
+  {
+      let reference = &data;
+      // Work with immutable reference
+  } // Reference goes out of scope
+
+  // Now we can mutate
+  data.push(4);
+  ```
+
+- **Self-referential structs**: Creating structs that hold references to their own data
+
+  ```rust
+  // Problematic - see ouroboros or rental crates for solutions
+  struct SelfRef {
+      value: String,
+      pointer: *const String, // Raw pointers are unsafe!
+  }
+  ```
+
+- **Mixing too many lifetime parameters**: Making code overly complex
+
+  ```rust
+  // Consider restructuring instead of:
+  fn complex<'a, 'b, 'c, 'd, T, U>(a: &'a T, b: &'b U, c: &'c T, d: &'d U) -> &'a str
+  ```
+
+- **Ignoring NLL**: Not utilizing Non-Lexical Lifetimes to their fullest
+  ```rust
+  let mut data = vec![1, 2, 3];
+  let reference = &data[0];
+  println!("{}", reference);
+  // In modern Rust, the borrow ends here, so we can mutate
+  data.push(4); // This works now with NLL
+  ```
+
+## Ecosystem integration
+
+- **Rental/ouroboros**: Crates for safe self-referential structs
+- **owning_ref**: Bundling an owner and a reference to a part of the owned value
+- **ghost-cell**: Advanced lifetime-based cell types
+- **pin-project**: Safely projecting through pinned references
+
+## Related rules
+
+- **Rust Memory Safety**: Lifetimes and borrowing are core to Rust's memory safety
+- **Rust Error Handling**: Errors often involve lifetime considerations
+- **Rust API Design**: Well-designed APIs have clear, minimal lifetime annotations
+
+By following these guidelines, you'll write Rust code that effectively leverages the borrow checker and lifetime system rather than fighting against them.

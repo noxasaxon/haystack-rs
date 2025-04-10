@@ -1,0 +1,64 @@
+---
+description: Guidelines for testing code after any modifications
+globs: ["**/*"]
+alwaysApply: true
+---
+# Post-Modification Testing
+
+To ensure code quality and prevent regressions, follow these testing guidelines after making any changes:
+
+## After Every Code Change
+
+Run the following command to verify that your code compiles successfully:
+
+```bash
+cargo check --workspace
+```
+
+This helps catch compilation errors early before submitting the code for review.
+
+## Before Submitting Code
+
+Before considering a response ready for the user, run the full test suite:
+
+```bash
+cargo test --workspace
+```
+
+## Testing Requirements
+
+- Every significant change MUST be tested
+- Never return code to the user without verifying it passes tests
+- If tests fail, fix the issues before submitting the response
+- For new functionality, add appropriate tests to cover the new code
+- When adding new tests, verify they are being discovered by checking the test output
+
+## Test Validation Checklist
+### All Langs
+- [ ] New functionality has appropriate test coverage
+- [ ] Edge cases and error conditions are properly tested
+- [ ] Consider property-based tests for better coverage of edge cases and invariants
+- [ ] Code checks successfully (remember testing already builds, so you don't need to build if you have run tests right before) with `cargo check --workspace`
+- [ ] All tests pass with `cargo test --workspace`
+- [ ] For domain types and property based tests, implement the `Arbitrary` trait to generate comprehensive test cases
+
+And after tests pass, fix formatting:
+- [ ]   cargo fix --workspace --allow-dirty
+- [ ]   cargo clippy --workspace --fix --allow-dirty
+
+Remember that untested code is likely to contain bugs that will frustrate users and require additional iterations to fix.
+
+Remember: A failing build or test suite is a blocker - do not proceed with additional changes until these are fixed.
+
+Note: The `--allow-dirty` flag is used with `cargo fix` and `cargo clippy --fix` to allow fixes in a working directory with uncommitted changes.
+
+- Add tests for any new functionality you've implemented
+- **Prefer property-based testing** whenever applicable (see property-based-testing.mdc rule)
+- Update existing tests to accommodate interface changes
+- Ensure edge cases are covered in your test suite
+- For domain models and validation logic, use property tests to verify constraints
+- Follow the test organization guidelines (see rust-test-organization.mdc rule)
+
+
+
+

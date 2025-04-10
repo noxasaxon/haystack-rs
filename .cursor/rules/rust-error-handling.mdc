@@ -1,0 +1,126 @@
+---
+title: Rust Error Handling Guidelines
+description: Guidelines for implementing robust error handling in Rust code
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Error Handling Guidelines
+
+When writing Rust code, follow these error handling best practices:
+
+## Use Result<T, E> and Option<T> appropriately
+
+- **Use `Result<T, E>`** for operations that can fail with an error
+- **Use `Option<T>`** for values that might be absent
+- **Avoid using `unwrap()` or `expect()`** in production code; properly handle errors instead
+- **Consider using the `?` operator** for concise error propagation
+
+## Create custom error types for libraries and applications
+
+- **Implement the `std::error::Error` trait** for custom error types
+- **Consider using the `thiserror` crate** for deriving common error implementations
+- **Make errors descriptive and actionable** for users or developers
+- **Ensure errors include sufficient context** for debugging
+
+## Use error conversion patterns
+
+- **Implement `From<OtherError>`** for your custom error types to simplify error conversion
+- **Consider using the `anyhow` crate** for application-level error handling
+- **For library code, prefer specific error types** over generic wrappers
+
+## Error propagation strategies
+
+- **Use the `?` operator** for concise error propagation
+
+  ```rust
+  fn read_username_from_file() -> Result<String, io::Error> {
+      let mut username = String::new();
+      File::open("username.txt")?.read_to_string(&mut username)?;
+      Ok(username)
+  }
+  ```
+
+- **Add context to errors** when propagating them
+
+  ```rust
+  // Using thiserror
+  #[derive(Debug, thiserror::Error)]
+  enum ConfigError {
+      #[error("failed to read config file: {0}")]
+      Io(#[from] std::io::Error),
+
+      #[error("invalid config format: {0}")]
+      Format(#[from] serde_json::Error),
+  }
+
+  // Using anyhow
+  use anyhow::{Context, Result};
+
+  fn read_config(path: &str) -> Result<Config> {
+      let content = std::fs::read_to_string(path)
+          .with_context(|| format!("failed to read config from {}", path))?;
+
+      let config: Config = serde_json::from_str(&content)
+          .context("invalid config format")?;
+
+      Ok(config)
+  }
+  ```
+
+## Choose the right approach for your use case
+
+- **For libraries**:
+
+  - Define specific error types with `thiserror`
+  - Provide clear documentation about errors
+  - Make errors easy to match on programmatically
+
+- **For applications**:
+  - Use `anyhow` for flexible, context-rich errors
+  - Focus on good error messages for users
+  - Consider error reporting and logging strategies
+
+## Error handling for fallible functions
+
+- **Return `Result` from functions** that can fail
+
+  ```rust
+  fn parse_config(content: &str) -> Result<Config, ConfigError> {
+      // Implementation
+  }
+  ```
+
+- **Return `Option` for functions** where the absence of a value is expected and not an error
+  ```rust
+  fn find_user(users: &[User], id: UserId) -> Option<&User> {
+      users.iter().find(|user| user.id == id)
+  }
+  ```
+
+## Common mistakes
+
+- **Overusing `unwrap()` and `expect()`**: These should be reserved for prototyping, tests, or truly unrecoverable errors
+- **Using string errors**: Using `Err("something went wrong")` lacks context and isn't type-safe
+- **Ignoring error context**: Not adding useful context when propagating errors up the stack
+- **Mixing error types inconsistently**: Not having a clear strategy for error type conversion
+- **Returning `Result` for infallible operations**: Over-complicating APIs when errors aren't possible
+- **Missing error documentation**: Not documenting what errors a function can return
+- **Using panic when recoverable**: Using `panic!` for errors that should be handled
+- **Losing original error information**: Not preserving root causes when converting errors
+
+## Ecosystem integration
+
+- **thiserror**: For defining error types with derives
+- **anyhow**: For flexible application-level error handling
+- **eyre**: An alternative to anyhow with support for custom error reporting
+- **fehler**: Uses procedural macros for try/catch-like error handling
+- **snafu**: Context-aware error handling with detailed error reports
+
+## Related rules
+
+- **Rust API Design**: Error types are part of your public API
+- **Rust Testing**: Testing error paths is as important as testing happy paths
+- **Rust Performance**: Error handling approaches can impact performance
+
+Remember that good error handling improves reliability and maintainability while providing a better experience for users of your code.

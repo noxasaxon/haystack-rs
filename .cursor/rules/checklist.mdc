@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: A rule for using the project checklist
+alwaysApply: true
+---
+
+Always reference the TODO LIST AT ./haystack-rs/haystack-rust/todo_list.md

@@ -1,0 +1,40 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: A rule used to create cursor rules
+globs: ["**/*.mdc"]
+alwaysApply: false
+---
+
+# Creating Cursor Rules: never .md, always .mdc in .cursor/rules
+
+When creating new MDC rules for this project, always:
+
+1. Save the rule as a separate Markdown file in the `.cursor/rules` directory
+2. Give the file a descriptive name related to the rule's purpose
+3. Follow the MDC rule format with appropriate frontmatter (title, description)
+4. Include clear instructions in the body of the rule
+
+## Rule Management Workflow
+
+- **Edit existing rules** when updating content that matches an existing topic or rule
+- **Create new rule files** only for completely new topics or guidelines that don't fit within existing rules
+- **Never duplicate rule content** across multiple files
+
+## Example structure:
+
+```markdown
+---
+title: Rule Title
+description: Brief description of what the rule does
+---
+
+# Rule Title
+
+[Detailed instructions for the rule]
+```
+
+Remember that each rule should be in its own separate file to maintain clarity and allow for easier updates.

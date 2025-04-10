@@ -1,0 +1,303 @@
+---
+title: Rust Idioms
+description: Essential idiomatic patterns and practices for writing idiomatic, effective Rust code
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Idioms
+
+Writing idiomatic Rust involves using established patterns that leverage the language's strengths. This rule covers common Rust idioms that promote efficient, readable, and maintainable code.
+
+## RAII (Resource Acquisition Is Initialization)
+
+The pattern of acquiring resources in constructors and releasing them in destructors.
+
+```rust
+struct TempFile {
+    path: PathBuf,
+}
+
+impl TempFile {
+    fn new(name: &str) -> std::io::Result<Self> {
+        let path = std::env::temp_dir().join(name);
+        File::create(&path)?;
+        Ok(TempFile { path })
+    }
+}
+
+impl Drop for TempFile {
+    fn drop(&mut self) {
+        std::fs::remove_file(&self.path).unwrap_or_else(|e| {
+            eprintln!("Failed to remove temp file: {}", e);
+        });
+    }
+}
+```
+
+## Prefer Methods to Functions
+
+Methods provide better discoverability and can enforce invariants.
+
+```rust
+// Less idiomatic
+fn distance(point: &Point, other: &Point) -> f64 {
+    // ...
+}
+
+// More idiomatic
+impl Point {
+    fn distance(&self, other: &Point) -> f64 {
+        // ...
+    }
+}
+```
+
+## Type-Driven Development
+
+Use Rust's type system to prevent errors and make impossible states unrepresentable.
+
+```rust
+// Less idiomatic: can represent invalid states
+struct User {
+    name: String,
+    age: i32, // Could be negative!
+}
+
+// More idiomatic: invalid states are unrepresentable
+struct User {
+    name: String,
+    age: NonZeroU32,
+}
+```
+
+## Builder Pattern
+
+Use when creating objects with many optional parameters.
+
+```rust
+struct ServerBuilder {
+    host: Option<String>,
+    port: Option<u16>,
+    workers: usize,
+    log_level: LogLevel,
+}
+
+impl ServerBuilder {
+    fn new() -> Self {
+        ServerBuilder {
+            host: None,
+            port: None,
+            workers: 4, // Default
+            log_level: LogLevel::Info, // Default
+        }
+    }
+
+    fn host(mut self, host: impl Into<String>) -> Self {
+        self.host = Some(host.into());
+        self
+    }
+
+    fn port(mut self, port: u16) -> Self {
+        self.port = Some(port);
+        self
+    }
+
+    fn workers(mut self, workers: usize) -> Self {
+        self.workers = workers;
+        self
+    }
+
+    fn build(self) -> Result<Server, ConfigError> {
+        let host = self.host.ok_or(ConfigError::MissingHost)?;
+        let port = self.port.ok_or(ConfigError::MissingPort)?;
+
+        Ok(Server {
+            host,
+            port,
+            workers: self.workers,
+            log_level: self.log_level,
+        })
+    }
+}
+
+// Usage
+let server = ServerBuilder::new()
+    .host("localhost")
+    .port(8080)
+    .workers(8)
+    .build()?;
+```
+
+## Conversion Traits
+
+Implement `From` and `Into` for clean conversions between types.
+
+```rust
+struct Meters(f64);
+struct Feet(f64);
+
+impl From<Feet> for Meters {
+    fn from(feet: Feet) -> Self {
+        Meters(feet.0 * 0.3048)
+    }
+}
+
+// Usage
+let feet = Feet(100.0);
+let meters: Meters = feet.into();  // Automatically uses From<Feet> for Meters
+```
+
+## Extension Traits
+
+Add methods to existing types without modifying them.
+
+```rust
+trait StringExt {
+    fn is_palindrome(&self) -> bool;
+}
+
+impl StringExt for str {
+    fn is_palindrome(&self) -> bool {
+        let chars: Vec<_> = self.chars().collect();
+        chars.iter().eq(chars.iter().rev())
+    }
+}
+
+// Usage
+assert!("racecar".is_palindrome());
+```
+
+## Prefer Iterators to Loops
+
+Iterators are more declarative and often optimize better.
+
+```rust
+// Less idiomatic
+let mut sum = 0;
+for i in 0..10 {
+    if i % 2 == 0 {
+        sum += i;
+    }
+}
+
+// More idiomatic
+let sum: i32 = (0..10).filter(|i| i % 2 == 0).sum();
+```
+
+## Match Guards
+
+Use match guards for complex conditions in pattern matching.
+
+```rust
+match value {
+    Some(x) if x > 0 => println!("Got a positive number: {}", x),
+    Some(x) if x < 0 => println!("Got a negative number: {}", x),
+    Some(0) | None => println!("Got zero or none"),
+    _ => unreachable!(),
+}
+```
+
+## Type Aliases for Readability
+
+Use type aliases to simplify complex types and improve readability.
+
+```rust
+// Hard to read
+fn process(handlers: &mut Vec<Box<dyn Fn(Event) -> Result<(), Error>>>) {
+    // ...
+}
+
+// More readable
+type EventHandler = Box<dyn Fn(Event) -> Result<(), Error>>;
+
+fn process(handlers: &mut Vec<EventHandler>) {
+    // ...
+}
+```
+
+## Prelude Pattern
+
+Export commonly used items in a prelude module.
+
+```rust
+// In lib.rs
+pub mod prelude {
+    pub use crate::error::Error;
+    pub use crate::config::Config;
+    pub use crate::client::Client;
+    // Other commonly used items
+}
+
+// In user code
+use my_library::prelude::*;
+```
+
+## Sealed Traits
+
+Create traits that can only be implemented within your crate.
+
+```rust
+mod sealed {
+    pub trait Sealed {}
+}
+
+pub trait MyFeature: sealed::Sealed {
+    // Public API methods
+    fn feature_method(&self);
+}
+
+// In the same crate
+impl sealed::Sealed for MyType {}
+impl MyFeature for MyType {
+    fn feature_method(&self) {
+        // Implementation
+    }
+}
+```
+
+## Deref Pattern (with caution)
+
+Implement `Deref` for "smart pointer" types, but use with care.
+
+```rust
+use std::ops::Deref;
+
+struct SmartString(String);
+
+impl Deref for SmartString {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+// Now SmartString can use String methods directly
+let smart = SmartString(String::from("Hello"));
+println!("{}", smart.len()); // Calls String::len via deref coercion
+```
+
+## Common mistakes
+
+- **Too much RAII**: Creating overly complex wrapper types when simpler solutions exist
+- **Inappropriate trait implementations**: Implementing traits that don't semantically fit the type
+- **Premature optimization**: Using complex patterns before they're needed
+- **Overuse of macros**: Using macros when regular functions would be clearer
+- **Abusing Deref**: Using `Deref` for types that aren't semantically pointer-like
+
+## Ecosystem integration
+
+- **serde**: Derive serialization/deserialization with minimal code
+- **derivative**: Enhanced derives for standard traits
+- **itertools**: Advanced iterator combinators
+- **smallvec/tinyvec**: Stack-based vectors for short sequences
+
+## Related rules
+
+- **Rust API Design**: These idioms contribute to good API design
+- **Rust Error Handling**: Many idioms involve proper error handling
+- **Rust Performance**: Idiomatic Rust code is often more performant
+- **Rust Memory Safety**: Idioms like RAII help ensure memory safety
+
+By following these idiomatic patterns, you'll write Rust code that's more consistent, readable, and maintainable while leveraging the strengths of the language.

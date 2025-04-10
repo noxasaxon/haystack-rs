@@ -1,0 +1,69 @@
+---
+title: Rust Error Handling Patterns
+description: Guidelines for implementing consistent and robust error handling in Rust code
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Error Handling Patterns
+
+## Introduction
+
+This rule provides guidelines for implementing consistent and robust error handling in Rust code. Proper error handling is essential for reliability, maintainability, and user experience. Inconsistent error handling can lead to subtle bugs, maintenance challenges, and poor developer experience.
+
+## Guidelines
+
+1. **Use Result for fallible operations**: Any function that can fail should return a `Result<T, E>` type rather than using panics or unwraps in production code.
+
+2. **Choose error types carefully**: 
+   - For libraries: Define custom error types that implement the `Error` trait
+   - For applications: Consider using `anyhow::Error` for simplicity
+   - For trait bounds: Ensure your error types satisfy required trait bounds
+
+3. **Error propagation patterns**:
+   - Use the `?` operator to propagate errors up the call stack when appropriate
+   - For `with_context` from `anyhow`, ensure the source error implements `std::error::Error`
+   - When trait bounds are not satisfied, use `map_err` to convert the error:
+     ```rust
+     // Instead of:
+     result.with_context(|| "Failed operation")?;
+     
+     // Use:
+     result.map_err(|e| anyhow::anyhow!("Failed operation: {}", e))?;
+     ```
+
+4. **Contextual errors**: Always add context to errors to help with debugging:
+   ```rust
+   file::read(path).with_context(|| format!("Failed to read file: {}", path.display()))?;
+   ```
+
+5. **Error conversions**: Implement `From` trait for easy conversions between error types:
+   ```rust
+   impl From<io::Error> for MyError {
+       fn from(err: io::Error) -> Self {
+           MyError::IoError(err)
+       }
+   }
+   ```
+
+6. **Error handling consistency**: Use the same error handling strategy throughout the codebase:
+   - Don't mix thiserror/anyhow with std::error::Error
+   - Don't mix custom error enums with anyhow in the same module
+
+## Implementation
+
+When implementing error handling:
+
+1. Review existing error handling in the codebase for consistency
+2. Make sure error types satisfy trait bounds required by libraries you're using
+3. Test error paths as thoroughly as success paths
+4. For public-facing errors, ensure they provide appropriate information without leaking sensitive details
+
+## Rationale
+
+Good error handling practices:
+- Improve code reliability and stability
+- Make debugging easier
+- Prevent subtle bugs related to improper error propagation
+- Ensure better user and developer experience
+- Allow for proper error recovery at appropriate points in the code 

@@ -1,4 +1,4 @@
-# Haystack-RS Project Roadmap
+# Haystack-Rust Project Roadmap
 
 This document outlines the roadmap for porting the Python Haystack library to Rust. The goal is to create a functionally equivalent Rust implementation that maintains API compatibility while leveraging Rust's performance and safety advantages.
 
@@ -35,6 +35,7 @@ Haystack is a framework for building search and retrieval systems, particularly 
 ### Phase 1: Core Infrastructure (Foundation)
 
 - [ ] **Document and Core Dataclasses**
+
   - [ ] Implement Document struct with all fields and methods
   - [ ] Create Answer struct
   - [ ] Add ByteStream for binary data
@@ -42,12 +43,14 @@ Haystack is a framework for building search and retrieval systems, particularly 
   - [ ] Implement SparseEmbedding
 
 - [ ] **Component System**
+
   - [ ] Create Component trait
   - [ ] Implement component registration
   - [ ] Add Input/Output socket system with type validation
   - [ ] Implement warm-up functionality
 
 - [ ] **Basic Pipeline**
+
   - [ ] Implement Pipeline struct
   - [ ] Add component connection validation
   - [ ] Create execution engine
@@ -60,12 +63,14 @@ Haystack is a framework for building search and retrieval systems, particularly 
 ### Phase 2: Document Store & Core Retrieval
 
 - [ ] **InMemoryDocumentStore**
+
   - [ ] Implement basic document storage
   - [ ] Add BM25 indexing and search
   - [ ] Create filtering system
   - [ ] Add serialization support
 
 - [ ] **Basic Retrievers**
+
   - [ ] Port InMemoryBM25Retriever
   - [ ] Simple document filtering
 
@@ -76,12 +81,14 @@ Haystack is a framework for building search and retrieval systems, particularly 
 ### Phase 3: File Conversion & Document Processing
 
 - [ ] **Basic File Converters**
+
   - [ ] TextToDocument converter
   - [ ] MarkdownToDocument converter
   - [ ] JSONToDocument converter
   - [ ] CSVToDocument converter
 
 - [ ] **Document Joiners and Manipulators**
+
   - [ ] Implement DocumentJoiner
   - [ ] Add MetadataRouter
 
@@ -93,11 +100,13 @@ Haystack is a framework for building search and retrieval systems, particularly 
 ### Phase 4: LLM Integration & Embedding Support
 
 - [ ] **LLM Components**
+
   - [ ] OpenAI client integration
   - [ ] PromptBuilder/PromptTemplate
   - [ ] AnswerBuilder
 
 - [ ] **Embedding Components**
+
   - [ ] OpenAI embeddings integration
   - [ ] Vector similarity search
   - [ ] Embedding-based retrievers
@@ -110,11 +119,13 @@ Haystack is a framework for building search and retrieval systems, particularly 
 ### Phase 5: Advanced Components
 
 - [ ] **Specialized Retrievers & Rankers**
+
   - [ ] Additional retriever implementations
   - [ ] Document ranking algorithms
   - [ ] Metadata-based filtering
 
 - [ ] **Evaluation Components**
+
   - [ ] Basic metrics implementation
   - [ ] Evaluation framework
 
@@ -125,11 +136,13 @@ Haystack is a framework for building search and retrieval systems, particularly 
 ### Phase 6: Advanced Content Processing
 
 - [ ] **Advanced File Support**
+
   - [ ] PDF document processing
   - [ ] DOCX document processing
   - [ ] HTML document processing
 
 - [ ] **Web Retrievers**
+
   - [ ] Web search integration
   - [ ] URL content fetching
 

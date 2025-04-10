@@ -1,0 +1,133 @@
+---
+title: Rust Test Organization Guidelines
+description: Guidelines for organizing tests in Rust workspaces to ensure proper test discovery and execution
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Test Organization Guidelines
+
+Proper organization of tests in Rust workspaces is essential for maintaining code quality and ensuring tests are properly discovered and executed. This rule provides specific guidelines for structuring tests in Rust workspaces.
+
+## Workspace-Level Test Structure
+
+- Place **workspace-level integration tests** in a `tests` directory at the workspace root
+- Ensure each test file has the `.rs` extension and contains valid test functions
+- Use descriptive filenames like `integration_tests.rs` or domain-specific names
+
+```rust
+// tests/integration_tests.rs
+#[test]
+fn test_end_to_end_workflow() {
+    // Test end-to-end functionality across multiple crates
+}
+```
+
+## Crate-Level Test Structure
+
+- **Every crate should have both unit tests and integration tests**
+- Define **unit tests** within source files in a module annotated with `#[cfg(test)]`
+- Place **integration tests** in a `tests` directory at the crate root
+- Ensure each integration test file is a separate file with functions annotated with `#[test]`
+
+```rust
+// crates/my_crate/src/lib.rs
+pub fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_add() {
+        assert_eq!(add(2, 2), 4);
+    }
+}
+```
+
+```rust
+// crates/my_crate/tests/integration_tests.rs
+use my_crate::add;
+
+#[test]
+fn test_add_integration() {
+    assert_eq!(add(3, 3), 6);
+}
+```
+
+## Libraries and Binaries in the Same Crate
+
+- When a crate contains **both a library and a binary**, make sure to:
+  - Define the library in `src/lib.rs`
+  - Define the binary in `src/main.rs`
+  - Specify both targets in `Cargo.toml`
+  - Export necessary functionality from the library for testing
+
+```toml
+# Cargo.toml
+[lib]
+name = "my_crate"
+path = "src/lib.rs"
+
+[[bin]]
+name = "my_crate_bin"
+path = "src/main.rs"
+```
+
+```rust
+// src/lib.rs
+pub fn public_function() {
+    // Implementation
+}
+
+// src/main.rs
+use my_crate::public_function;
+
+fn main() {
+    public_function();
+}
+```
+
+## Proper Workspace Configuration
+
+- Define workspace members explicitly in the root `Cargo.toml`
+- **Never use glob patterns** without verifying they work with `cargo test`
+- Always list each crate individually to ensure test discovery
+
+```toml
+# Cargo.toml at workspace root
+[workspace]
+members = [
+    "crates/crate1",
+    "crates/crate2",
+    "crates/crate3"
+]
+```
+
+## Test Dependencies
+
+- Place test-only dependencies in the `[dev-dependencies]` section
+- Common test dependencies include:
+  - `tempfile` for creating temporary files and directories
+  - `mockall` for mocking dependencies
+  - `proptest` or `quickcheck` for property-based testing
+
+```toml
+[dev-dependencies]
+tempfile = "3.3"
+mockall = "0.11"
+proptest = "1.0"
+```
+
+## Test Validation and Troubleshooting
+
+- Always run `cargo test --workspace` to verify all tests are discovered and pass
+- If tests aren't being discovered, check:
+  1. That the test file uses the correct naming convention
+  2. That the test functions are properly annotated with `#[test]`
+  3. That the crate is properly listed in the workspace
+  4. That library and binary targets are correctly specified in `Cargo.toml`
+
+By following these guidelines, you'll ensure that tests are properly organized, discovered, and executed in your Rust workspace. 

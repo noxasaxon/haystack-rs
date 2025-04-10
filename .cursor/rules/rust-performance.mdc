@@ -1,0 +1,863 @@
+---
+title: Rust Performance Guidelines
+description: Guidelines for writing high-performance Rust code
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Performance Optimization
+
+Rust enables writing high-performance code that rivals C and C++ while maintaining memory safety. These guidelines will help you write efficient Rust code that makes the best use of system resources.
+
+## Use zero-cost abstractions
+
+- **Leverage Rust's zero-cost abstractions** wherever possible
+
+  ```rust
+  // Zero-cost iterators - compiles to efficient loops
+  fn sum_array(data: &[i32]) -> i32 {
+      // This is as fast as a hand-written loop
+      data.iter().sum()
+  }
+
+  // Zero-cost generics - no runtime overhead
+  fn min<T: Ord>(a: T, b: T) -> T {
+      if a <= b { a } else { b }
+  }
+
+  // Traits with static dispatch - resolved at compile time
+  trait Shape {
+      fn area(&self) -> f64;
+  }
+
+  impl Shape for Circle {
+      fn area(&self) -> f64 {
+          std::f64::consts::PI * self.radius * self.radius
+      }
+  }
+
+  // Compile-time function evaluation
+  const fn factorial(n: u64) -> u64 {
+      match n {
+          0 | 1 => 1,
+          n => n * factorial(n - 1),
+      }
+  }
+
+  const LOOKUP_TABLE: [u64; 10] = {
+      let mut table = [0; 10];
+      let mut i = 0;
+      while i < 10 {
+          table[i] = factorial(i);
+          i += 1;
+      }
+      table
+  };
+  ```
+
+- **Avoid unnecessary boxing or dynamic dispatch** when static dispatch is sufficient
+
+  ```rust
+  // Slower: Dynamic dispatch with trait objects
+  fn process_shapes_dynamic(shapes: Vec<Box<dyn Shape>>) -> f64 {
+      shapes.iter().map(|s| s.area()).sum()
+  }
+
+  // Faster: Static dispatch with generics
+  fn process_shapes_static<T: Shape>(shapes: &[T]) -> f64 {
+      shapes.iter().map(|s| s.area()).sum()
+  }
+
+  // Alternative: Enum-based approach for heterogeneous collections
+  enum ShapeEnum {
+      Circle(Circle),
+      Rectangle(Rectangle),
+      Triangle(Triangle),
+  }
+
+  impl ShapeEnum {
+      fn area(&self) -> f64 {
+          match self {
+              ShapeEnum::Circle(c) => c.area(),
+              ShapeEnum::Rectangle(r) => r.area(),
+              ShapeEnum::Triangle(t) => t.area(),
+          }
+      }
+  }
+
+  fn process_shapes_enum(shapes: &[ShapeEnum]) -> f64 {
+      shapes.iter().map(|s| s.area()).sum()
+  }
+  ```
+
+- **Use const generics** for compile-time optimized code
+
+  ```rust
+  // Use const generics for arrays of any size
+  fn sum_array<const N: usize>(arr: &[i32; N]) -> i32 {
+      let mut sum = 0;
+      let mut i = 0;
+      while i < N {
+          sum += arr[i];
+          i += 1;
+      }
+      sum
+  }
+
+  // Matrix implementation with const generics
+  struct Matrix<T, const ROWS: usize, const COLS: usize> {
+      data: [[T; COLS]; ROWS],
+  }
+
+  impl<T: Copy + Default, const ROWS: usize, const COLS: usize>
+      Matrix<T, ROWS, COLS> {
+      fn new() -> Self {
+          Self {
+              data: [[T::default(); COLS]; ROWS],
+          }
+      }
+  }
+  ```
+
+## Optimize memory usage
+
+- **Minimize allocation and use stack allocation** when possible
+
+  ```rust
+  // Bad: Unnecessary allocations
+  fn process_string_slow(input: &str) -> String {
+      let mut result = String::new();
+      for c in input.chars() {
+          let upper = c.to_uppercase().to_string(); // Allocation for each char
+          result.push_str(&upper); // Potentially multiple allocations
+      }
+      result
+  }
+
+  // Better: Pre-allocate and minimize allocations
+  fn process_string_fast(input: &str) -> String {
+      // Estimate capacity to avoid reallocations
+      let mut result = String::with_capacity(input.len() * 2);
+      for c in input.chars() {
+          for upper_c in c.to_uppercase() {
+              result.push(upper_c); // No allocation per char
+          }
+      }
+      result
+  }
+
+  // Use &str instead of String when possible
+  fn find_substring(haystack: &str, needle: &str) -> bool {
+      haystack.contains(needle)
+  }
+
+  // Use arrays for small fixed-size collections
+  fn fixed_buffer() {
+      let buffer: [u8; 1024] = [0; 1024]; // On stack, no allocation
+      // Use buffer...
+  }
+  ```
+
+- **Be mindful of struct layout and padding**
+
+  ```rust
+  // Inefficient: Struct with poor memory layout
+  struct Inefficient {
+      a: u8,    // 1 byte + 7 bytes padding
+      b: u64,   // 8 bytes
+      c: u8,    // 1 byte + 7 bytes padding
+      d: u64,   // 8 bytes
+  }  // Total: 32 bytes
+
+  // Better: Reorder fields to minimize padding
+  struct Better {
+      b: u64,   // 8 bytes
+      d: u64,   // 8 bytes
+      a: u8,    // 1 byte
+      c: u8,    // 1 byte + 6 bytes padding
+  }  // Total: 24 bytes
+
+  // Use explicit alignment/packing when needed
+  #[repr(C)]
+  struct ExplicitLayout {
+      a: u32,
+      b: u16,
+      c: u8,
+  }
+
+  #[repr(packed)]
+  struct Packed {
+      a: u32,
+      b: u16,
+      c: u8,
+  }
+
+  // Use alignment to improve cache performance
+  #[repr(align(64))]
+  struct CacheAligned {
+      data: [u8; 1024],
+  }
+  ```
+
+- **Use specialized collection types** for small or stack-allocated collections
+
+  ```rust
+  use smallvec::{SmallVec, smallvec};
+
+  // Uses stack for small collections, heap for larger ones
+  fn process_items(items: &[u32]) -> SmallVec<[u32; 8]> {
+      // Stores up to 8 elements on the stack, then uses heap
+      let mut result: SmallVec<[u32; 8]> = smallvec![];
+
+      for item in items {
+          if *item % 2 == 0 {
+              result.push(*item);
+          }
+      }
+
+      result
+  }
+
+  use arrayvec::ArrayVec;
+
+  // Strictly stack-allocated, fixed capacity
+  fn top_k_items(items: &[u32], k: usize) -> ArrayVec<u32, 16> {
+      let mut result = ArrayVec::<u32, 16>::new();
+
+      for item in items.iter().take(k.min(16)) {
+          result.push(*item);
+      }
+
+      result
+  }
+  ```
+
+- **Consider using custom allocators** for specialized needs
+
+  ```rust
+  use std::alloc::{GlobalAlloc, Layout, System};
+
+  // Simple custom allocator that tracks allocations
+  struct TracingAllocator;
+
+  unsafe impl GlobalAlloc for TracingAllocator {
+      unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+          println!("Allocating {} bytes", layout.size());
+          System.alloc(layout)
+      }
+
+      unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+          println!("Deallocating {} bytes", layout.size());
+          System.dealloc(ptr, layout)
+      }
+  }
+
+  // Register the global allocator
+  #[global_allocator]
+  static ALLOCATOR: TracingAllocator = TracingAllocator;
+  ```
+
+## Employ efficient algorithms and data structures
+
+- **Choose appropriate algorithms** with the right complexity
+
+  ```rust
+  // Bad: O(n²) algorithm for finding duplicates
+  fn has_duplicates_slow(data: &[i32]) -> bool {
+      for i in 0..data.len() {
+          for j in i+1..data.len() {
+              if data[i] == data[j] {
+                  return true;
+              }
+          }
+      }
+      false
+  }
+
+  // Better: O(n log n) with sorting
+  fn has_duplicates_medium(data: &[i32]) -> bool {
+      if data.is_empty() {
+          return false;
+      }
+
+      let mut sorted = data.to_vec();
+      sorted.sort();
+
+      for i in 0..sorted.len()-1 {
+          if sorted[i] == sorted[i+1] {
+              return true;
+          }
+      }
+
+      false
+  }
+
+  // Best: O(n) with HashSet
+  use std::collections::HashSet;
+
+  fn has_duplicates_fast(data: &[i32]) -> bool {
+      let mut seen = HashSet::with_capacity(data.len());
+
+      for &item in data {
+          if !seen.insert(item) {
+              return true;
+          }
+      }
+
+      false
+  }
+  ```
+
+- **Use specialized data structures** for specific access patterns
+
+  ```rust
+  use std::collections::{HashMap, BTreeMap, HashSet, BTreeSet, VecDeque, BinaryHeap};
+
+  // Fast lookups, unordered
+  fn frequency_count(data: &[String]) -> HashMap<String, usize> {
+      let mut counts = HashMap::new();
+      for item in data {
+          *counts.entry(item.clone()).or_insert(0) += 1;
+      }
+      counts
+  }
+
+  // Ordered map with slower lookups
+  fn sorted_frequency_count(data: &[String]) -> BTreeMap<String, usize> {
+      let mut counts = BTreeMap::new();
+      for item in data {
+          *counts.entry(item.clone()).or_insert(0) += 1;
+      }
+      counts
+  }
+
+  // Fast lookups for membership testing
+  fn unique_items(data: &[String]) -> HashSet<String> {
+      data.iter().cloned().collect()
+  }
+
+  // Efficient queue operations
+  fn breadth_first_search(graph: &Graph, start: usize) -> Vec<usize> {
+      let mut visited = vec![false; graph.size()];
+      let mut queue = VecDeque::new();
+      let mut result = Vec::new();
+
+      visited[start] = true;
+      queue.push_back(start);
+
+      while let Some(node) = queue.pop_front() {
+          result.push(node);
+
+          for &neighbor in &graph.neighbors(node) {
+              if !visited[neighbor] {
+                  visited[neighbor] = true;
+                  queue.push_back(neighbor);
+              }
+          }
+      }
+
+      result
+  }
+
+  // Priority queue for algorithms like Dijkstra
+  fn k_smallest(data: &[i32], k: usize) -> Vec<i32> {
+      let mut heap = BinaryHeap::new();
+
+      for &item in data {
+          heap.push(-item); // Negate for min-heap behavior
+      }
+
+      let mut result = Vec::with_capacity(k);
+      for _ in 0..k.min(data.len()) {
+          if let Some(item) = heap.pop() {
+              result.push(-item); // Negate back
+          }
+      }
+
+      result
+  }
+  ```
+
+- **Consider cache locality** in data structure design
+
+  ```rust
+  // Poor cache locality: Array of structs
+  struct Point3D {
+      x: f32,
+      y: f32,
+      z: f32,
+  }
+
+  // Processing has poor cache locality
+  fn calculate_distances_aos(points: &[Point3D], origin: &Point3D) -> Vec<f32> {
+      points.iter()
+          .map(|p| {
+              let dx = p.x - origin.x;
+              let dy = p.y - origin.y;
+              let dz = p.z - origin.z;
+              (dx*dx + dy*dy + dz*dz).sqrt()
+          })
+          .collect()
+  }
+
+  // Better cache locality: Struct of arrays
+  struct Points3D {
+      x: Vec<f32>,
+      y: Vec<f32>,
+      z: Vec<f32>,
+  }
+
+  impl Points3D {
+      fn new(capacity: usize) -> Self {
+          Self {
+              x: Vec::with_capacity(capacity),
+              y: Vec::with_capacity(capacity),
+              z: Vec::with_capacity(capacity),
+          }
+      }
+
+      fn push(&mut self, x: f32, y: f32, z: f32) {
+          self.x.push(x);
+          self.y.push(y);
+          self.z.push(z);
+      }
+
+      fn len(&self) -> usize {
+          self.x.len()
+      }
+  }
+
+  // Processing has better cache locality
+  fn calculate_distances_soa(points: &Points3D, origin: &Point3D) -> Vec<f32> {
+      let mut distances = Vec::with_capacity(points.len());
+
+      for i in 0..points.len() {
+          let dx = points.x[i] - origin.x;
+          let dy = points.y[i] - origin.y;
+          let dz = points.z[i] - origin.z;
+          distances.push((dx*dx + dy*dy + dz*dz).sqrt());
+      }
+
+      distances
+  }
+  ```
+
+## Profile before optimizing
+
+- **Use benchmarking tools like `criterion`** for accurate measurements
+
+  ```rust
+  // In Cargo.toml
+  [dev-dependencies]
+  criterion = "0.4"
+
+  [[bench]]
+  name = "my_benchmark"
+  harness = false
+
+  // In benches/my_benchmark.rs
+  use criterion::{black_box, criterion_group, criterion_main, Criterion};
+
+  fn fibonacci(n: u64) -> u64 {
+      match n {
+          0 => 0,
+          1 => 1,
+          n => fibonacci(n-1) + fibonacci(n-2),
+      }
+  }
+
+  fn memoized_fibonacci(n: u64) -> u64 {
+      fn fib_memo(n: u64, memo: &mut [Option<u64>]) -> u64 {
+          if let Some(value) = memo[n as usize] {
+              return value;
+          }
+
+          let result = match n {
+              0 => 0,
+              1 => 1,
+              n => fib_memo(n-1, memo) + fib_memo(n-2, memo),
+          };
+
+          memo[n as usize] = Some(result);
+          result
+      }
+
+      let mut memo = vec![None; (n + 1) as usize];
+      fib_memo(n, &mut memo)
+  }
+
+  fn criterion_benchmark(c: &mut Criterion) {
+      c.bench_function("fibonacci 10", |b| {
+          b.iter(|| fibonacci(black_box(10)))
+      });
+
+      c.bench_function("memoized_fibonacci 10", |b| {
+          b.iter(|| memoized_fibonacci(black_box(10)))
+      });
+  }
+
+  criterion_group!(benches, criterion_benchmark);
+  criterion_main!(benches);
+  ```
+
+- **Employ profiling tools** to identify actual bottlenecks
+
+  ```bash
+  # Using cargo-flamegraph for visualization
+  $ cargo install flamegraph
+  $ cargo flamegraph --bin my_program
+
+  # Using perf
+  $ perf record -g ./target/release/my_program
+  $ perf report
+
+  # Using valgrind/callgrind
+  $ valgrind --tool=callgrind ./target/release/my_program
+  $ kcachegrind callgrind.out.*
+  ```
+
+- **Make data-driven optimization decisions**
+
+  ```rust
+  // Before optimization, measure performance
+  fn optimize_process() {
+      let data = load_test_data();
+
+      // Measure baseline
+      let start = std::time::Instant::now();
+      let result1 = process_data_v1(&data);
+      let duration1 = start.elapsed();
+      println!("Version 1: {:?}", duration1);
+
+      // Measure optimized version
+      let start = std::time::Instant::now();
+      let result2 = process_data_v2(&data);
+      let duration2 = start.elapsed();
+      println!("Version 2: {:?}", duration2);
+
+      // Verify results are equivalent
+      assert_eq!(result1, result2);
+
+      // Calculate improvement
+      let improvement = (duration1.as_micros() as f64) / (duration2.as_micros() as f64);
+      println!("Speedup: {:.2}x", improvement);
+  }
+  ```
+
+- **Document performance characteristics** and tradeoffs
+
+  ```rust
+  /// Finds the median value in the given slice.
+  ///
+  /// # Performance
+  ///
+  /// This implementation has O(n) average time complexity using
+  /// quickselect algorithm, and O(1) space complexity.
+  ///
+  /// For sorted inputs, consider using the O(1) `sorted_median` function instead.
+  pub fn median(data: &mut [f64]) -> Option<f64> {
+      if data.is_empty() {
+          return None;
+      }
+
+      let mid = data.len() / 2;
+      quickselect(data, mid);
+
+      Some(if data.len() % 2 == 1 {
+          data[mid]
+      } else {
+          // For even lengths, average the two middle values
+          (data[mid - 1] + data[mid]) / 2.0
+      })
+  }
+  ```
+
+## Utilize parallelism safely
+
+- **Use `rayon` for data-parallel operations**
+
+  ```rust
+  use rayon::prelude::*;
+
+  // Sequential processing
+  fn sum_of_squares_sequential(input: &[i32]) -> i32 {
+      input.iter()
+          .map(|&x| x * x)
+          .sum()
+  }
+
+  // Parallel processing with rayon
+  fn sum_of_squares_parallel(input: &[i32]) -> i32 {
+      input.par_iter()
+          .map(|&x| x * x)
+          .sum()
+  }
+
+  // Parallel processing with custom chunks
+  fn process_chunks_parallel(data: &[u8]) -> Vec<u32> {
+      data.par_chunks(1024)
+          .map(|chunk| process_chunk(chunk))
+          .collect()
+  }
+
+  fn process_chunk(chunk: &[u8]) -> u32 {
+      // Process a single chunk...
+      chunk.iter().map(|&b| b as u32).sum()
+  }
+  ```
+
+- **Consider async/await for I/O-bound tasks**
+
+  ```rust
+  use tokio::fs::File;
+  use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+  #[tokio::main]
+  async fn main() -> Result<(), Box<dyn std::error::Error>> {
+      // Process multiple files concurrently
+      let handles = vec![
+          tokio::spawn(process_file("file1.txt", "output1.txt")),
+          tokio::spawn(process_file("file2.txt", "output2.txt")),
+          tokio::spawn(process_file("file3.txt", "output3.txt")),
+      ];
+
+      // Wait for all to complete
+      for handle in handles {
+          handle.await??;
+      }
+
+      Ok(())
+  }
+
+  async fn process_file(input: &str, output: &str) -> Result<(), std::io::Error> {
+      // Open input file
+      let mut input_file = File::open(input).await?;
+
+      // Read content
+      let mut buffer = Vec::new();
+      input_file.read_to_end(&mut buffer).await?;
+
+      // Process (CPU-bound work could be offloaded to a thread pool)
+      let processed = buffer.iter().map(|&b| b.to_ascii_uppercase()).collect::<Vec<_>>();
+
+      // Write output
+      let mut output_file = File::create(output).await?;
+      output_file.write_all(&processed).await?;
+
+      Ok(())
+  }
+  ```
+
+- **Use thread pools for CPU-bound tasks**
+
+  ```rust
+  use std::sync::mpsc;
+  use std::thread;
+
+  // Simple thread pool implementation
+  struct ThreadPool {
+      workers: Vec<Worker>,
+      sender: mpsc::Sender<Job>,
+  }
+
+  type Job = Box<dyn FnOnce() + Send + 'static>;
+
+  impl ThreadPool {
+      fn new(size: usize) -> Self {
+          assert!(size > 0);
+
+          let (sender, receiver) = mpsc::channel();
+          let receiver = std::sync::Arc::new(std::sync::Mutex::new(receiver));
+
+          let mut workers = Vec::with_capacity(size);
+          for id in 0..size {
+              workers.push(Worker::new(id, std::sync::Arc::clone(&receiver)));
+          }
+
+          ThreadPool { workers, sender }
+      }
+
+      fn execute<F>(&self, f: F)
+      where
+          F: FnOnce() + Send + 'static,
+      {
+          let job = Box::new(f);
+          self.sender.send(job).unwrap();
+      }
+  }
+
+  struct Worker {
+      id: usize,
+      thread: Option<thread::JoinHandle<()>>,
+  }
+
+  impl Worker {
+      fn new(id: usize, receiver: std::sync::Arc<std::sync::Mutex<mpsc::Receiver<Job>>>) -> Self {
+          let thread = thread::spawn(move || loop {
+              let job = receiver.lock().unwrap().recv().unwrap();
+              println!("Worker {} got a job; executing.", id);
+              job();
+          });
+
+          Worker {
+              id,
+              thread: Some(thread),
+          }
+      }
+  }
+
+  // Using the thread pool
+  fn main() {
+      let pool = ThreadPool::new(4);
+
+      for i in 0..8 {
+          pool.execute(move || {
+              println!("Processing task {}", i);
+              // CPU-intensive work here
+              thread::sleep(std::time::Duration::from_secs(1));
+          });
+      }
+
+      // Wait for some time to allow tasks to complete
+      thread::sleep(std::time::Duration::from_secs(10));
+  }
+  ```
+
+- **Employ lock-free data structures** when appropriate
+
+  ```rust
+  use std::sync::atomic::{AtomicUsize, Ordering};
+  use std::sync::Arc;
+  use std::thread;
+
+  // Lock-free counter using atomics
+  struct Counter {
+      count: AtomicUsize,
+  }
+
+  impl Counter {
+      fn new() -> Self {
+          Counter {
+              count: AtomicUsize::new(0),
+          }
+      }
+
+      fn increment(&self) {
+          self.count.fetch_add(1, Ordering::SeqCst);
+      }
+
+      fn value(&self) -> usize {
+          self.count.load(Ordering::SeqCst)
+      }
+  }
+
+  fn main() {
+      let counter = Arc::new(Counter::new());
+      let mut handles = vec![];
+
+      // Spawn 10 threads to increment the counter
+      for _ in 0..10 {
+          let counter = Arc::clone(&counter);
+          let handle = thread::spawn(move || {
+              for _ in 0..1000 {
+                  counter.increment();
+              }
+          });
+          handles.push(handle);
+      }
+
+      // Wait for all threads to complete
+      for handle in handles {
+          handle.join().unwrap();
+      }
+
+      // Should print "Counter value: 10000"
+      println!("Counter value: {}", counter.value());
+  }
+  ```
+
+## Compile-time optimizations
+
+- **Use appropriate compiler flags**
+
+  ```toml
+  # Cargo.toml
+  [profile.release]
+  # Enable link-time optimization
+  lto = true
+  # Maximum optimization level
+  opt-level = 3
+  # Codegen units (smaller values increase optimization but slow compilation)
+  codegen-units = 1
+  # Panic strategy (abort is smaller than unwind)
+  panic = "abort"
+  ```
+
+- **Enable profile-guided optimization** for maximum performance
+
+  ```bash
+  # Step 1: Build with instrumentation
+  $ RUSTFLAGS="-Cprofile-generate=/tmp/pgo-data" cargo build --release
+
+  # Step 2: Run the program to collect profile data
+  $ ./target/release/my_program
+
+  # Step 3: Merge profile data
+  $ llvm-profdata merge -o /tmp/pgo-data.profdata /tmp/pgo-data
+
+  # Step 4: Build with profile data
+  $ RUSTFLAGS="-Cprofile-use=/tmp/pgo-data.profdata" cargo build --release
+  ```
+
+- **Consider specialized builds** for different platforms
+
+  ```toml
+  # .cargo/config.toml
+
+  # CPU-specific optimizations for your local machine
+  [target.'cfg(target_arch = "x86_64")']
+  rustflags = ["-C", "target-cpu=native"]
+
+  # Optimize for different architectures
+  [target.x86_64-unknown-linux-gnu]
+  rustflags = ["-C", "target-feature=+avx2"]
+
+  [target.wasm32-unknown-unknown]
+  rustflags = ["-C", "opt-level=s"]  # Optimize for size
+  ```
+
+## Common mistakes
+
+- **Premature optimization**: Optimizing before identifying actual bottlenecks
+- **Benchmark bias**: Not accounting for warm-up, caching, or jitter in measurements
+- **Unsafe without verification**: Using unsafe code without proper verification
+- **Inappropriate parallelism**: Adding concurrency to non-bottleneck code, creating overhead
+- **Algorithmic inefficiency**: Focusing on micro-optimizations instead of algorithm improvements
+- **Memory fragmentation**: Frequent allocations and deallocations causing fragmentation
+- **Cache thrashing**: Poor memory access patterns causing cache misses
+- **False sharing**: Multiple threads accessing the same cache line causing contention
+- **Over-abstraction**: Creating complex abstractions that prevent compiler optimizations
+- **Lock contention**: Excessive locking causing threads to block frequently
+
+## Ecosystem integration
+
+- **criterion**: Framework for benchmarking Rust code
+- **cargo-flamegraph**: Profiling Rust applications with flame graphs
+- **perf**: Linux performance counters profiling tool
+- **rayon**: Data parallelism library for Rust
+- **crossbeam**: Tools for concurrent programming
+- **nalgebra/ndarray**: Optimized numeric computation libraries
+- **simdjson/simdutf8**: SIMD-accelerated parsing libraries
+- **smallvec/arrayvec**: Stack-based vector alternatives
+- **bumpalo**: Fast bump allocation arena
+- **mimalloc/jemalloc**: Alternative memory allocators
+
+## Related rules
+
+- **Rust Memory Safety**: Understand how safety impacts performance
+- **Rust Concurrency**: Learn how to safely parallelize computations
+- **Rust API Design**: Design APIs that enable good performance
+- **Rust Async Programming**: Use async for I/O bound performance
+- **Rust Testing**: Test performance characteristics systematically
+
+Remember that premature optimization is often counterproductive. Write clean, correct code first, then optimize where measurements show it's beneficial.

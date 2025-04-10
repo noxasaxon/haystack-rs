@@ -1,0 +1,140 @@
+---
+title: Rust Typestate Pattern Guidelines
+description: Guidelines for effectively implementing and using the Typestate pattern in Rust
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Typestate Pattern
+
+The Typestate pattern leverages Rust's type system to enforce state transitions at compile time, improving code correctness and maintainability.
+
+## When to use the Typestate pattern
+
+- When managing data that flows through multiple states in a specific order
+- For processes with well-defined state transitions that should be enforced
+- To prevent invalid state transitions (e.g., preventing a closed connection from being written to)
+- When validating user data that must go through a specific process
+- For state machines where compile-time guarantees are valuable
+- For enforcing protocols that require operations to happen in a specific sequence
+- When implementing builder patterns to ensure all required fields are set
+- For resource management with clear lifecycles (open → use → close)
+
+## How the Typestate pattern works in Rust
+
+- Each state is modeled as a distinct type (usually a struct)
+- State transition functions take ownership of the current state and return the next state
+- The compiler enforces valid transitions through its ownership system
+- Old states are invalidated after transitions, preventing invalid operations
+- The pattern enforces at compile time that methods can only be called when an object is in the appropriate state
+
+## Core implementation approaches
+
+### 1. Distinct types for states
+
+```rust
+struct Stage1 { data: String }
+struct Stage2 { data: String }
+
+impl Stage1 {
+    fn advance(self) -> Stage2 {
+        Stage2 { data: self.data }
+    }
+}
+```
+
+### 2. Generic state parameter
+
+```rust
+struct StateMachine<S> {
+    data: String,
+    _state: PhantomData<S>,
+}
+
+// State markers (zero-sized types)
+struct StateA;
+struct StateB;
+
+impl StateMachine<StateA> {
+    fn transition_to_b(self) -> StateMachine<StateB> {
+        StateMachine {
+            data: self.data,
+            _state: PhantomData
+        }
+    }
+}
+```
+
+## Implementation guidelines
+
+- Model each state as a separate struct or type
+- Design state transition functions that consume one state and produce another
+- Always take ownership of states in transition functions to invalidate previous states
+- Use method chaining for more ergonomic APIs
+- Hide implementation details to prevent users from creating invalid states
+- Consider using private constructors with public factory methods
+- Document the state flow clearly for API users
+- Consider using trait bounds to ensure specific capabilities in each state
+
+## Managing shared data between states
+
+- Use generics with a state type parameter for data that persists across states
+- Consider the "type witness" pattern to share data between states
+- Use composition to keep shared data while changing state types
+- Implement the `From` trait for smooth transitions between states
+- Keep state-specific functionality in the appropriate state types
+- Use `PhantomData` to track state without runtime overhead
+
+## Typestate pattern examples
+
+- Network connections: Open -> Active -> Closed states
+- User data validation: Unvalidated -> Validated -> Processed
+- Resource management: Pending -> Acquired -> Released
+- Game character states: Standing -> Running -> Jumping
+- Form handling: Empty -> Filled -> Validated -> Submitted
+- HTTP request building: Missing -> HasUrl -> HasMethod -> Ready
+
+## Combining with the Newtype pattern
+
+The Typestate pattern works excellently with the Newtype pattern:
+
+```rust
+// Newtype for HTTP requests
+struct RequestBuilder<State>(String, PhantomData<State>);
+
+// State markers
+struct Missing;
+struct HasUrl;
+struct Ready;
+
+impl RequestBuilder<Missing> {
+    fn new() -> Self {
+        RequestBuilder(String::new(), PhantomData)
+    }
+
+    fn url(self, url: String) -> RequestBuilder<HasUrl> {
+        RequestBuilder(self.0 + &url, PhantomData)
+    }
+}
+
+impl RequestBuilder<HasUrl> {
+    fn method(self, method: String) -> RequestBuilder<Ready> {
+        RequestBuilder(self.0 + &method, PhantomData)
+    }
+}
+
+impl RequestBuilder<Ready> {
+    fn build(self) -> Request {
+        // Build the request
+    }
+}
+```
+
+This combination provides:
+
+- Strong type safety through distinct types
+- Self-documenting APIs that guide users through correct usage
+- Enhanced IDE support with state-appropriate method suggestions
+- Zero runtime cost since all checks happen at compile time
+
+By leveraging the Typestate pattern, you can encode state transitions into Rust's type system, letting the compiler enforce correct usage and preventing many common bugs at compile time rather than runtime.

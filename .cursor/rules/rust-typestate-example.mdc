@@ -1,0 +1,290 @@
+---
+title: Rust Typestate Example
+description: A practical example of implementing the Typestate pattern in Rust with code
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Typestate Example
+
+This rule demonstrates concrete implementations of the Typestate pattern in Rust to illustrate best practices.
+
+## Example: Document Processing System
+
+Consider a document processing system that must go through specific states:
+
+1. `Draft` - Initial document creation
+2. `PendingReview` - Submitted for review
+3. `Published` - Approved and published
+
+```rust
+// The state types - each is a separate struct
+struct Draft {
+    content: String,
+}
+
+struct PendingReview {
+    content: String,
+}
+
+struct Published {
+    content: String,
+}
+
+// Implementation for the Draft state
+impl Draft {
+    // Constructor for the initial state
+    pub fn new(content: String) -> Self {
+        Self { content }
+    }
+
+    // State transition to PendingReview
+    pub fn request_review(self) -> PendingReview {
+        PendingReview { content: self.content }
+    }
+
+    // Method only available in the Draft state
+    pub fn add_content(&mut self, text: &str) {
+        self.content.push_str(text);
+    }
+}
+
+// Implementation for the PendingReview state
+impl PendingReview {
+    // State transition to Draft (rejection)
+    pub fn reject(self) -> Draft {
+        Draft { content: self.content }
+    }
+
+    // State transition to Published
+    pub fn approve(self) -> Published {
+        Published { content: self.content }
+    }
+
+    // No editing methods available in PendingReview state!
+}
+
+// Implementation for the Published state
+impl Published {
+    // Methods specific to published documents
+    pub fn content(&self) -> &str {
+        &self.content
+    }
+
+    // No state transitions from Published in this example
+}
+```
+
+## Typestate with Generic Parameter
+
+For more complex scenarios, you can use a generic parameter to represent the state:
+
+```rust
+// State marker types (zero-sized types)
+struct Unopened;
+struct Opened;
+struct Closed;
+
+// The file with a generic state parameter
+struct File<State> {
+    name: String,
+    data: Vec<u8>,
+    state: std::marker::PhantomData<State>,
+}
+
+// Initial state implementation
+impl File<Unopened> {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            data: Vec::new(),
+            state: std::marker::PhantomData,
+        }
+    }
+
+    pub fn open(self) -> File<Opened> {
+        File {
+            name: self.name,
+            data: self.data,
+            state: std::marker::PhantomData,
+        }
+    }
+}
+
+// Opened state implementation
+impl File<Opened> {
+    pub fn write(&mut self, data: &[u8]) {
+        self.data.extend_from_slice(data);
+    }
+
+    pub fn close(self) -> File<Closed> {
+        File {
+            name: self.name,
+            data: self.data,
+            state: std::marker::PhantomData,
+        }
+    }
+}
+
+// Closed state implementation
+impl File<Closed> {
+    pub fn delete(self) -> () {
+        // Clean up resources
+    }
+}
+```
+
+## Combining Newtype and Typestate Patterns
+
+This example demonstrates combining both patterns for a measurement validation system:
+
+```rust
+// Newtype pattern for units of measurement
+struct Celsius(f64);
+struct Fahrenheit(f64);
+struct Validated;
+struct Unvalidated;
+
+// Combining with typestate for temperature reading validation
+struct TemperatureReading<Unit, State> {
+    value: Unit,
+    timestamp: u64,
+    _state: std::marker::PhantomData<State>,
+}
+
+// Unvalidated Celsius reading
+impl TemperatureReading<Celsius, Unvalidated> {
+    pub fn new_celsius(value: f64) -> Self {
+        Self {
+            value: Celsius(value),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            _state: std::marker::PhantomData,
+        }
+    }
+
+    pub fn validate(self) -> Result<TemperatureReading<Celsius, Validated>, ValidationError> {
+        // Celsius must be between -273.15 and 1000 for this system
+        if self.value.0 >= -273.15 && self.value.0 <= 1000.0 {
+            Ok(TemperatureReading {
+                value: self.value,
+                timestamp: self.timestamp,
+                _state: std::marker::PhantomData,
+            })
+        } else {
+            Err(ValidationError::OutOfRange)
+        }
+    }
+
+    pub fn to_fahrenheit(self) -> TemperatureReading<Fahrenheit, Unvalidated> {
+        TemperatureReading {
+            value: Fahrenheit(self.value.0 * 9.0/5.0 + 32.0),
+            timestamp: self.timestamp,
+            _state: std::marker::PhantomData,
+        }
+    }
+}
+
+// Unvalidated Fahrenheit reading
+impl TemperatureReading<Fahrenheit, Unvalidated> {
+    pub fn new_fahrenheit(value: f64) -> Self {
+        Self {
+            value: Fahrenheit(value),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            _state: std::marker::PhantomData,
+        }
+    }
+
+    pub fn validate(self) -> Result<TemperatureReading<Fahrenheit, Validated>, ValidationError> {
+        // Fahrenheit must be between -459.67 and 1832 for this system
+        if self.value.0 >= -459.67 && self.value.0 <= 1832.0 {
+            Ok(TemperatureReading {
+                value: self.value,
+                timestamp: self.timestamp,
+                _state: std::marker::PhantomData,
+            })
+        } else {
+            Err(ValidationError::OutOfRange)
+        }
+    }
+
+    pub fn to_celsius(self) -> TemperatureReading<Celsius, Unvalidated> {
+        TemperatureReading {
+            value: Celsius((self.value.0 - 32.0) * 5.0/9.0),
+            timestamp: self.timestamp,
+            _state: std::marker::PhantomData,
+        }
+    }
+}
+
+// The validated readings can be processed
+impl<Unit> TemperatureReading<Unit, Validated> {
+    pub fn process(&self) -> ProcessedResult {
+        // Process the validated temperature reading
+        ProcessedResult {}
+    }
+
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp
+    }
+}
+
+// Error type
+enum ValidationError {
+    OutOfRange,
+}
+
+// Result of processing
+struct ProcessedResult {}
+
+// Example usage:
+fn main() {
+    // Create an unvalidated Celsius reading
+    let reading = TemperatureReading::new_celsius(25.0);
+
+    // Convert to Fahrenheit (still unvalidated)
+    let fahrenheit_reading = reading.to_fahrenheit();
+
+    // Validate the Fahrenheit reading
+    match fahrenheit_reading.validate() {
+        Ok(validated) => {
+            // Only validated readings can be processed
+            let result = validated.process();
+            println!("Processed at timestamp: {}", validated.timestamp());
+        }
+        Err(_) => println!("Validation failed"),
+    }
+
+    // This won't compile - can't call process() on unvalidated reading
+    // let invalid = TemperatureReading::new_celsius(5000.0).process();
+}
+```
+
+This combined example demonstrates:
+
+1. Newtypes (`Celsius`, `Fahrenheit`) for type-safe units of measurement
+2. Typestate (`Unvalidated`, `Validated`) to enforce validation before processing
+3. Methods available only in specific states
+4. Type safety preventing mixing different units
+5. Compile-time enforcement of the validation workflow
+6. Zero runtime overhead: The state tracking via PhantomData has no runtime cost
+7. Self-documenting: The API guides users through the correct sequence of operations
+
+Use these patterns to implement type-safe state machines in your Rust code.
+
+## Key implementation patterns to note
+
+1. **Ownership transfer**: Each state transition takes `self` by value, consuming the original state
+2. **State-specific methods**: Methods are only available on the appropriate state
+3. **No invalid transitions**: The compiler prevents invalid operations (e.g., writing to a closed file)
+4. **Clean API**: Users can only follow the defined workflows
+5. **Type safety**: Errors are caught at compile time, not runtime
+6. **Zero runtime overhead**: The state tracking via PhantomData has no runtime cost
+7. **Self-documenting**: The API guides users through the correct sequence of operations
+
+Use these patterns to implement type-safe state machines in your Rust code.

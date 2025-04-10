@@ -1,0 +1,70 @@
+---
+title: Rust Import Management Guidelines
+description: Guidelines for organizing and managing imports in Rust projects
+globs: ["**/*.rs"]
+alwaysApply: false
+tags:
+  - rust
+  - code-organization
+---
+
+# Rust Import Management
+
+## Introduction
+
+This rule provides guidelines for managing imports in Rust codebases. Proper import organization is crucial for maintainability, readability, and preventing subtle bugs related to name resolution and visibility.
+
+## Guidelines
+
+1. **Direct vs. Re-exported Imports**: 
+   - Import types directly from their source crates when possible
+   - Be careful with re-exported types from parent modules as they can lead to confusion
+
+2. **Visibility and Privacy**:
+   - Private types/modules can only be used within their defining module
+   - Remember that re-exporting makes a private type from another crate available to your consumers
+   - Always use proper paths when accessing types from other modules
+
+3. **Import Organization**:
+   - Group imports logically (standard library, external crates, internal modules)
+   - Use nested paths (`use std::{fs, path::Path}`) for related imports
+   - Consider alphabetizing imports within groups
+
+4. **Explicit Paths**:
+   - When importing types with the same name from different modules, use explicit paths or aliases
+   - Example: `use std::io::Error as IoError;`
+
+5. **Import Optimization**:
+   - Regularly clean up unused imports with `cargo fix --allow-dirty`
+   - Avoid wildcard imports (`use module::*`) in production code as they can lead to name conflicts
+
+6. **Re-exports in Libraries**:
+   - Use a well-organized `lib.rs` to re-export public API items
+   - Example:
+     ```rust
+     // Re-export key types for easier consumer use
+     pub use self::types::MyType;
+     pub use self::error::Error;
+     ```
+
+7. **Module Structure**:
+   - Place imports at the top of each module
+   - If a module gets too many imports, consider refactoring it into smaller modules
+
+## Implementation
+
+When managing imports:
+
+1. Run `cargo check` or `cargo build` after changing imports to verify correctness
+2. Fix any "cannot find type" or "private type" errors by correcting import paths
+3. Use the IDE's import organization features to keep imports clean and organized
+4. Periodically run `cargo fix` to clean up unused imports
+
+## Rationale
+
+Good import management:
+- Improves code readability and maintainability
+- Prevents subtle bugs related to name resolution
+- Makes the module structure more obvious
+- Speeds up compilation by reducing unnecessary dependencies
+- Makes refactoring easier and safer 

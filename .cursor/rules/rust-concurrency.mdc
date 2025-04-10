@@ -1,0 +1,58 @@
+---
+title: Rust Concurrency Guidelines
+description: Guidelines for writing safe and efficient concurrent code in Rust
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Concurrency Guidelines
+
+Rust's type system helps prevent data races, but writing good concurrent code requires more. Follow these guidelines:
+
+## Thread safety
+
+- Use `Send` and `Sync` traits to enforce thread safety at compile time
+- Understand which standard library types are thread-safe
+- Use thread-safe containers and primitives from `std::sync`
+- Be cautious with interior mutability across threads
+- Consider using thread-local storage when appropriate
+
+## Shared state management
+
+- Use appropriate synchronization primitives (`Mutex`, `RwLock`) for shared mutable state
+- Prefer message passing with channels when suitable
+- Minimize the scope and duration of locks
+- Avoid holding locks across await points in async code
+- Be aware of potential deadlocks in lock acquisition order
+
+## Async/await patterns
+
+- Design for non-blocking operations with async/await
+- Use the appropriate async runtime for your needs (Tokio, async-std, smol)
+- Understand the differences between blocking and async I/O
+- Avoid mixing async and blocking code without appropriate bridges
+- Keep Future traits bound sizes manageable
+
+## Parallelism strategies
+
+- Use `rayon` for data parallelism and work stealing
+- Consider fork-join parallelism for suitable workloads
+- Design for embarrassingly parallel tasks when possible
+- Be mindful of work distribution and load balancing
+- Use atomics for simple shared counters and flags
+
+## Error handling in concurrent code
+
+- Propagate errors appropriately across thread boundaries
+- Use appropriate error channels or aggregation strategies
+- Consider panic handling and recovery strategies
+- Ensure resources are properly cleaned up on errors
+
+## Performance considerations
+
+- Be aware of contention points in concurrent access
+- Consider lock-free algorithms where appropriate
+- Understand the performance characteristics of different synchronization primitives
+- Measure and profile to identify bottlenecks
+
+By following these practices, you'll create concurrent Rust code that is both safe and efficient.

@@ -1,0 +1,41 @@
+---
+description: Always run cargo build after making code changes to immediately catch compilation errors
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Post-Build/check Verification Rule
+
+## Introduction
+
+This rule ensures that we always run `cargo check` after making changes to Rust code to immediately catch any compilation errors. This helps maintain code quality and prevents accumulating multiple errors.
+
+## Guidelines
+
+1. **Build After Changes**: Always run `cargo check` immediately after making changes to Rust code.
+
+2. **Fix Errors Immediately**: Address compilation errors as soon as they appear rather than making additional changes.
+
+3. **Incremental Changes**: Make small, incremental changes and verify they build correctly before proceeding.
+
+4. **Error Understanding**: Take time to understand compilation errors fully before attempting to fix them.
+
+5. **Test After Build**: Once the code builds successfully, run tests to ensure functionality.
+
+## Implementation
+
+After editing any Rust file, execute:
+
+```bash
+cargo check
+```
+
+If the check fails, carefully read the error messages and focus on fixing them before making any other changes to the codebase.
+
+## Rationale
+
+Immediate build verification:
+- Catches errors early in the development process
+- Makes it easier to identify which change caused the error
+- Prevents accumulation of multiple errors that become difficult to untangle
+- Saves development time in the long run 

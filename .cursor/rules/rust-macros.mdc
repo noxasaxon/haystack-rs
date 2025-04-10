@@ -1,0 +1,193 @@
+---
+title: Rust Macro Guidelines
+description: Guidelines for designing and implementing effective, maintainable macros in Rust
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+
+# Rust Macro Guidelines
+
+Rust macros are powerful code generation tools that, when used appropriately, can reduce boilerplate and create elegant APIs.
+
+## When to use macros
+
+- **Reducing repetitive code**: When you need to generate similar code variants
+- **Domain-specific languages**: For creating custom syntax within Rust
+- **Compile-time validation**: To perform checks that can't be expressed via the type system
+- **Generating implementations**: When implementing traits in a systematic way
+- **Variable argument handling**: For functions that accept varying numbers of arguments
+
+## When NOT to use macros
+
+- **When regular functions will do**: Prefer normal functions whenever possible
+- **For simple code sharing**: Use functions or traits instead
+- **When readability is critical**: Macros can be harder to understand and debug
+- **For complex logic**: Overly complex macros become maintenance challenges
+
+## Declarative vs procedural macros
+
+### Declarative macros (`macro_rules!`)
+
+```rust
+macro_rules! vec_of_strings {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::new();
+            $(
+                temp_vec.push($x.to_string());
+            )*
+            temp_vec
+        }
+    };
+}
+
+// Usage:
+let v = vec_of_strings![1, 2, 3];  // Creates vec!["1", "2", "3"]
+```
+
+Best for:
+
+- Simple pattern-based transformations
+- Basic repetition and substitution
+- When you don't need access to the Rust compiler's APIs
+
+### Procedural macros
+
+#### Attribute macros
+
+```rust
+// In a proc-macro crate
+#[proc_macro_attribute]
+pub fn route(attr: TokenStream, item: TokenStream) -> TokenStream {
+    // Implementation that transforms the input token streams
+}
+
+// Usage:
+#[route(GET, "/")]
+fn index() {}
+```
+
+Best for:
+
+- Adding behavior to existing items
+- Code generation based on attributes
+- Framework integration
+
+#### Derive macros
+
+```rust
+// In a proc-macro crate
+#[proc_macro_derive(Builder)]
+pub fn derive_builder(input: TokenStream) -> TokenStream {
+    // Generate a builder implementation for the struct
+}
+
+// Usage:
+#[derive(Builder)]
+struct Command {
+    executable: String,
+    args: Vec<String>,
+    env: Vec<String>,
+}
+```
+
+Best for:
+
+- Automatically implementing traits
+- Generating associated methods
+- Reducing boilerplate implementations
+
+#### Function-like macros
+
+```rust
+// In a proc-macro crate
+#[proc_macro]
+pub fn sql(input: TokenStream) -> TokenStream {
+    // Parse SQL at compile time and generate Rust code
+}
+
+// Usage:
+let users = sql!(SELECT * FROM users WHERE active = true);
+```
+
+Best for:
+
+- Domain-specific languages
+- Compile-time parsing and validation
+- Complex code generation from custom syntax
+
+## Implementation guidelines
+
+- **Hygienic variable names**: Use `$crate` for absolute paths and generate unique identifiers
+- **Error messages**: Provide clear, informative error messages for invalid inputs
+- **Documentation**: Document macro usage thoroughly with examples
+- **Debugging**: Include `#[cfg(test)]` expanded examples in documentation
+- **Recursion limits**: Be aware of recursion limits with complex macros
+- **Testing**: Test macros extensively with different inputs and edge cases
+
+## Common macro patterns
+
+### Repetition with different separators
+
+```rust
+macro_rules! hash_map {
+    ( $( $key:expr => $value:expr ),* ) => {
+        {
+            let mut map = std::collections::HashMap::new();
+            $(
+                map.insert($key, $value);
+            )*
+            map
+        }
+    };
+}
+```
+
+### Handling optional parameters
+
+```rust
+macro_rules! log {
+    ($message:expr) => {
+        println!("{}", $message);
+    };
+    ($message:expr, $level:expr) => {
+        println!("[{}] {}", $level, $message);
+    };
+}
+```
+
+### Recursive macro expansion
+
+```rust
+macro_rules! recurse {
+    () => {};
+    ($head:expr, $($tail:expr),*) => {
+        process($head);
+        recurse!($($tail),*);
+    };
+}
+```
+
+## Common mistakes
+
+- **Global namespace pollution**: Not using `$crate::` prefix for internal helpers
+- **Non-hygienic macros**: Inadvertently capturing or shadowing external variables
+- **Over-engineered solutions**: Using macros when regular functions would be clearer
+- **Poor error messages**: Not providing helpful errors for invalid macro usage
+- **Tight coupling**: Creating macros that are difficult to maintain or refactor
+- **Performance issues**: Generating unnecessarily verbose or inefficient code
+
+## Ecosystem integration
+
+- **syn/quote**: Essential crates for procedural macro development
+- **proc-macro2**: For better testing of procedural macros
+- **paste**: For concatenating identifiers in macros
+- **thiserror/anyhow**: Useful for error handling in procedural macros
+
+## Related rules
+
+- **Rust API Design**: Macros should follow the same API design principles as functions
+- **Rust Error Handling**: Provide meaningful errors from macros
+- **Rust Testing**: Test macros thoroughly including edge cases
+
+By following these guidelines, you'll create macros that are maintainable, predictable, and provide genuine value to your codebase while avoiding the pitfalls of excessive macro usage.

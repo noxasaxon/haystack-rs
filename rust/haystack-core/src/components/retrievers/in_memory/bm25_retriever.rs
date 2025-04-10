@@ -4,7 +4,7 @@ use anyhow::{Result, anyhow};
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 
-use crate::component::{Component, ComponentBase};
+use crate::component_system::{Component, ComponentBase};
 use crate::document_stores::{FilterPolicy, DocumentStore};
 use crate::document_stores::in_memory::document_store::InMemoryDocumentStore;
 use haystack_dataclasses::document::Document;
@@ -46,7 +46,7 @@ impl InMemoryBM25Retriever {
         // Add input socket for query
         input_sockets.insert(
             "query".to_string(),
-            crate::component::InputSocket::new(
+            crate::component_system::InputSocket::new(
                 "query".to_string(),
                 std::any::TypeId::of::<String>(),
                 "String".to_string(),
@@ -59,7 +59,7 @@ impl InMemoryBM25Retriever {
         // Add optional input socket for filters
         input_sockets.insert(
             "filters".to_string(),
-            crate::component::InputSocket::new(
+            crate::component_system::InputSocket::new(
                 "filters".to_string(),
                 std::any::TypeId::of::<HashMap<String, Value>>(),
                 "HashMap<String, Value>".to_string(),
@@ -72,7 +72,7 @@ impl InMemoryBM25Retriever {
         // Add output socket for documents
         output_sockets.insert(
             "documents".to_string(),
-            crate::component::OutputSocket::new(
+            crate::component_system::OutputSocket::new(
                 "documents".to_string(),
                 std::any::TypeId::of::<Vec<Document>>(),
                 "Vec<Document>".to_string(),
@@ -169,11 +169,11 @@ impl Component for InMemoryBM25Retriever {
         Ok(())
     }
     
-    fn input_sockets(&self) -> &HashMap<String, crate::component::InputSocket> {
+    fn input_sockets(&self) -> &HashMap<String, crate::component_system::InputSocket> {
         self.base.input_sockets()
     }
     
-    fn output_sockets(&self) -> &HashMap<String, crate::component::OutputSocket> {
+    fn output_sockets(&self) -> &HashMap<String, crate::component_system::OutputSocket> {
         self.base.output_sockets()
     }
     

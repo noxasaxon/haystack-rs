@@ -157,7 +157,7 @@ macro_rules! component {
                 $(
                     sockets.insert(
                         $input_name.to_string(), 
-                        $crate::component::InputSocket::new(
+                        $crate::component_system::InputSocket::new(
                             $input_name.to_string(),
                             std::any::TypeId::of::<$input_type>(),
                             stringify!($input_type).to_string(),
@@ -186,7 +186,7 @@ macro_rules! component {
                 $(
                     sockets.insert(
                         $output_name.to_string(), 
-                        $crate::component::OutputSocket::new(
+                        $crate::component_system::OutputSocket::new(
                             $output_name.to_string(),
                             std::any::TypeId::of::<$output_type>(),
                             stringify!($output_type).to_string(),

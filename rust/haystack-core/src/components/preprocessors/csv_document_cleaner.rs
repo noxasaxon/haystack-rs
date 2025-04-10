@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::component::{Component, ComponentBase, InputSocket, OutputSocket};
+use crate::component_system::{Component, ComponentBase, InputSocket, OutputSocket};
 
 /// A component that cleans CSV documents by removing empty rows and columns.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,7 +68,7 @@ impl CSVDocumentCleaner {
         // Add input socket for documents
         input_sockets.insert(
             "documents".to_string(),
-            crate::component::InputSocket::new(
+            crate::component_system::InputSocket::new(
                 "documents".to_string(),
                 std::any::TypeId::of::<Vec<Document>>(),
                 "Vec<Document>".to_string(),
@@ -81,7 +81,7 @@ impl CSVDocumentCleaner {
         // Add output socket for documents
         output_sockets.insert(
             "documents".to_string(),
-            crate::component::OutputSocket::new(
+            crate::component_system::OutputSocket::new(
                 "documents".to_string(),
                 std::any::TypeId::of::<Vec<Document>>(),
                 "Vec<Document>".to_string(),

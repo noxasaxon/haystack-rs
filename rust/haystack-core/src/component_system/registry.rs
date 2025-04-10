@@ -11,7 +11,7 @@ use anyhow::{Result, anyhow};
 use serde_json::Value;
 use lazy_static::lazy_static;
 
-use crate::component::{Component, ComponentInfo};
+use crate::component_system::{Component, ComponentInfo};
 use crate::errors::ComponentDeserializationError;
 
 /// Factory function signature for creating components
@@ -180,8 +180,8 @@ pub fn find_components_by_tag(tag: &str) -> Vec<String> {
 #[macro_export]
 macro_rules! register_component {
     ($class_name:expr, $module_path:expr, $description:expr, $version:expr, $tags:expr, $factory:expr) => {
-        $crate::component::registry::register_component(
-            $crate::component::registry::ComponentMetadata::new(
+        $crate::component_system::registry::register_component(
+            $crate::component_system::registry::ComponentMetadata::new(
                 $class_name,
                 $module_path,
                 $description,
@@ -197,7 +197,7 @@ macro_rules! register_component {
 #[macro_export]
 macro_rules! component_factory {
     ($component_type:ty) => {
-        |info: &$crate::component::ComponentInfo| -> anyhow::Result<Box<dyn $crate::component::Component>> {
+        |info: &$crate::component_system::ComponentInfo| -> anyhow::Result<Box<dyn $crate::component_system::Component>> {
             let component = <$component_type>::from_component_info(info)?;
             Ok(Box::new(component))
         }

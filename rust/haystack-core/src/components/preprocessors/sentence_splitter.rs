@@ -4,7 +4,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::component::{Component, ComponentBase, InputSocket, OutputSocket};
+use crate::component_system::{Component, ComponentBase, InputSocket, OutputSocket};
 
 /// Supported languages for sentence splitting
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -85,7 +85,7 @@ impl SentenceSplitter {
         // Add input socket for texts
         input_sockets.insert(
             "texts".to_string(),
-            crate::component::InputSocket::new(
+            crate::component_system::InputSocket::new(
                 "texts".to_string(),
                 std::any::TypeId::of::<Vec<String>>(),
                 "Vec<String>".to_string(),
@@ -98,7 +98,7 @@ impl SentenceSplitter {
         // Add output socket for sentences
         output_sockets.insert(
             "sentences".to_string(),
-            crate::component::OutputSocket::new(
+            crate::component_system::OutputSocket::new(
                 "sentences".to_string(),
                 std::any::TypeId::of::<Vec<HashMap<String, Value>>>(),
                 "Vec<HashMap<String, Value>>".to_string(),

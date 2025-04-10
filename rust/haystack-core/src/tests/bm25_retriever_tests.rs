@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
-use crate::component::Component;
-use crate::components::retrievers::in_memory::bm25_retriever::InMemoryBM25Retriever;
+use crate::component_system::Component;
+use crate::component_systems::retrievers::in_memory::bm25_retriever::InMemoryBM25Retriever;
 use crate::document_stores::{DocumentStore, FilterPolicy};
 use crate::document_stores::in_memory::document_store::InMemoryDocumentStore;
 use crate::pipeline::Pipeline;

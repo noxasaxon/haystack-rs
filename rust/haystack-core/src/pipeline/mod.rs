@@ -10,7 +10,7 @@ use anyhow::{Result, Context, anyhow};
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 
-use crate::component::{Component, ComponentInfo, VariadicSocketHandler, SocketType};
+use crate::component_system::{Component, ComponentInfo, VariadicSocketHandler, SocketType};
 use crate::errors::{PipelineRuntimeError, PipelineConnectError, PipelineComponentsBlockedError};
 use crate::serialization::DictSerializable;
 

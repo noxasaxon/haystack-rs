@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use serde_json::Value;
 
-use crate::component::{Component, TextSplitter, TextJoiner};
+use crate::component_system::{Component, TextSplitter, TextJoiner};
 
 #[test]
 fn test_text_splitter() {

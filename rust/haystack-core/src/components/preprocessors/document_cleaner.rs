@@ -12,7 +12,7 @@ use serde_json::Value;
 use unicase::UniCase;
 use unicode_normalization::UnicodeNormalization;
 
-use crate::component::{Component, ComponentBase};
+use crate::component_system::{Component, ComponentBase};
 use haystack_dataclasses::Document;
 
 /// The DocumentCleaner component cleans the text in documents
@@ -76,7 +76,7 @@ impl DocumentCleaner {
         // Add input socket for documents
         input_sockets.insert(
             "documents".to_string(),
-            crate::component::InputSocket::new(
+            crate::component_system::InputSocket::new(
                 "documents".to_string(),
                 std::any::TypeId::of::<Vec<Document>>(),
                 "Vec<Document>".to_string(),
@@ -89,7 +89,7 @@ impl DocumentCleaner {
         // Add output socket for documents
         output_sockets.insert(
             "documents".to_string(),
-            crate::component::OutputSocket::new(
+            crate::component_system::OutputSocket::new(
                 "documents".to_string(),
                 std::any::TypeId::of::<Vec<Document>>(),
                 "Vec<Document>".to_string(),
@@ -421,11 +421,11 @@ impl Component for DocumentCleaner {
         ]))
     }
     
-    fn input_sockets(&self) -> &HashMap<String, crate::component::InputSocket> {
+    fn input_sockets(&self) -> &HashMap<String, crate::component_system::InputSocket> {
         self.base.input_sockets()
     }
     
-    fn output_sockets(&self) -> &HashMap<String, crate::component::OutputSocket> {
+    fn output_sockets(&self) -> &HashMap<String, crate::component_system::OutputSocket> {
         self.base.output_sockets()
     }
     

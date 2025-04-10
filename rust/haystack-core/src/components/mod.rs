@@ -6,6 +6,7 @@
 
 pub mod preprocessors;
 pub mod retrievers;
+pub mod joiners;
 
 // Re-export common components
 // Preprocessors
@@ -17,3 +18,6 @@ pub use preprocessors::csv_document_cleaner::CSVDocumentCleaner;
 
 // Retrievers
 pub use retrievers::in_memory::bm25_retriever::InMemoryBM25Retriever;
+
+// Joiners
+pub use joiners::document_joiner::DocumentJoiner;

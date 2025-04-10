@@ -5,7 +5,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::component::{Component, ComponentBase, InputSocket, OutputSocket};
+use crate::component_system::{Component, ComponentBase, InputSocket, OutputSocket};
 
 /// A component that cleans text strings by removing regex matches, converting 
 /// to lowercase, removing punctuation and removing numbers.
@@ -61,7 +61,7 @@ impl TextCleaner {
         // Add input socket for documents
         input_sockets.insert(
             "texts".to_string(),
-            crate::component::InputSocket::new(
+            crate::component_system::InputSocket::new(
                 "texts".to_string(),
                 std::any::TypeId::of::<Vec<String>>(),
                 "Vec<String>".to_string(),
@@ -74,7 +74,7 @@ impl TextCleaner {
         // Add output socket for documents
         output_sockets.insert(
             "texts".to_string(),
-            crate::component::OutputSocket::new(
+            crate::component_system::OutputSocket::new(
                 "texts".to_string(),
                 std::any::TypeId::of::<Vec<String>>(),
                 "Vec<String>".to_string(),

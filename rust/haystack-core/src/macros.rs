@@ -97,7 +97,7 @@ macro_rules! define_component {
         $(#[$meta])*
         $vis struct $name {
             /// Base component implementation
-            base: $crate::component::ComponentBase,
+            base: $crate::component_system::ComponentBase,
             
             $(
                 $(#[$field_meta])*
@@ -132,7 +132,7 @@ macro_rules! define_component {
                 
                 // Create the struct with default values
                 let mut component = Self {
-                    base: $crate::component::ComponentBase::new(
+                    base: $crate::component_system::ComponentBase::new(
                         init_parameters,
                         input_sockets,
                         output_sockets,
@@ -142,7 +142,7 @@ macro_rules! define_component {
                 
                 // Apply the new implementation from the macro
                 {
-                    use $crate::component::Component;
+                    use $crate::component_system::Component;
                     $($new_body)*
                 }
                 
@@ -150,7 +150,7 @@ macro_rules! define_component {
             }
             
             /// Create a component from component info
-            pub fn from_component_info(info: &$crate::component::ComponentInfo) -> ::anyhow::Result<Self> {
+            pub fn from_component_info(info: &$crate::component_system::ComponentInfo) -> ::anyhow::Result<Self> {
                 let params = &info.init_parameters;
                 
                 $(
@@ -165,14 +165,14 @@ macro_rules! define_component {
             }
         }
         
-        impl $crate::component::Component for $name {
+        impl $crate::component_system::Component for $name {
             fn run(&self, $inputs_var: ::std::collections::HashMap<String, serde_json::Value>) -> ::anyhow::Result<::std::collections::HashMap<String, serde_json::Value>> $run_body
             
-            fn input_sockets(&self) -> &::std::collections::HashMap<String, $crate::component::InputSocket> {
+            fn input_sockets(&self) -> &::std::collections::HashMap<String, $crate::component_system::InputSocket> {
                 self.base.input_sockets()
             }
             
-            fn output_sockets(&self) -> &::std::collections::HashMap<String, $crate::component::OutputSocket> {
+            fn output_sockets(&self) -> &::std::collections::HashMap<String, $crate::component_system::OutputSocket> {
                 self.base.output_sockets()
             }
             
@@ -186,16 +186,16 @@ macro_rules! define_component {
             )*
         }
         
-        impl $crate::component::ComponentSerialization for $name {
-            fn component_info(&self) -> $crate::component::ComponentInfo {
-                $crate::component::ComponentInfo {
+        impl $crate::component_system::ComponentSerialization for $name {
+            fn component_info(&self) -> $crate::component_system::ComponentInfo {
+                $crate::component_system::ComponentInfo {
                     class_name: stringify!($name).to_string(),
                     module_path: module_path!().to_string(),
                     init_parameters: self.init_parameters().clone(),
                 }
             }
             
-            fn from_component_info(info: &$crate::component::ComponentInfo) -> ::anyhow::Result<Box<dyn $crate::component::Component>> {
+            fn from_component_info(info: &$crate::component_system::ComponentInfo) -> ::anyhow::Result<Box<dyn $crate::component_system::Component>> {
                 let component = Self::from_component_info(info)?;
                 Ok(Box::new(component))
             }
@@ -238,7 +238,7 @@ macro_rules! component_inputs {
 #[macro_export]
 macro_rules! create_input_socket {
     ($sockets:ident, $input_name:ident, Variadic<$inner_type:ty>) => {
-        let socket = $crate::component::InputSocket::new_variadic::<$inner_type>(
+        let socket = $crate::component_system::InputSocket::new_variadic::<$inner_type>(
             stringify!($input_name).to_string(),
             stringify!($inner_type).to_string(),
             None,
@@ -248,7 +248,7 @@ macro_rules! create_input_socket {
     };
     
     ($sockets:ident, $input_name:ident, GreedyVariadic<$inner_type:ty>) => {
-        let socket = $crate::component::InputSocket::new_variadic::<$inner_type>(
+        let socket = $crate::component_system::InputSocket::new_variadic::<$inner_type>(
             stringify!($input_name).to_string(),
             stringify!($inner_type).to_string(),
             None,
@@ -258,7 +258,7 @@ macro_rules! create_input_socket {
     };
     
     ($sockets:ident, $input_name:ident, $input_type:ty) => {
-        let socket = $crate::component::InputSocket::new(
+        let socket = $crate::component_system::InputSocket::new(
             stringify!($input_name).to_string(),
             ::std::any::TypeId::of::<$input_type>(),
             stringify!($input_type).to_string(),
@@ -280,7 +280,7 @@ macro_rules! component_outputs {
     }) => {{
         let mut sockets = ::std::collections::HashMap::new();
         $(
-            let socket = $crate::component::OutputSocket::new(
+            let socket = $crate::component_system::OutputSocket::new(
                 stringify!($output_name).to_string(),
                 ::std::any::TypeId::of::<$output_type>(),
                 stringify!($output_type).to_string(),
@@ -344,7 +344,7 @@ macro_rules! extract_variadic {
             values.push(value);
         }
             
-        $crate::component::Variadic::from(values)
+        $crate::component_system::Variadic::from(values)
     }};
 }
 

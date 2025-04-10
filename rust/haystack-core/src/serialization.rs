@@ -10,7 +10,7 @@ use anyhow::{Result, Context};
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 
-use crate::component::{Component, ComponentInfo};
+use crate::component_system::{Component, ComponentInfo};
 use crate::errors::SerializationError;
 
 /// Trait for objects that can be serialized to and deserialized from dictionaries
@@ -51,7 +51,7 @@ pub fn default_from_dict<T: for<'de> Deserialize<'de>>(data: &Value) -> Result<T
 
 /// Create a component instance from component info using the registry
 pub fn deserialize_component(info: &ComponentInfo) -> Result<Box<dyn Component>> {
-    crate::component::registry::create_component(info)
+    crate::component_system::registry::create_component(info)
 }
 
 /// Convert a component to a serialized form

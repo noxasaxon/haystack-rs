@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use serde_json::Value;
 
-use crate::component::{TextSplitter, TextJoiner};
+use crate::component_system::{TextSplitter, TextJoiner};
 use crate::pipeline::Pipeline;
 
 #[test]

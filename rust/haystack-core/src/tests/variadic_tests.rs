@@ -5,8 +5,8 @@
 use std::collections::HashMap;
 use serde_json::json;
 
-use crate::component::{Component, TextSplitter};
-use crate::component::examples::{VariadicTextJoiner, GreedyTextProcessor};
+use crate::component_system::{Component, TextSplitter};
+use crate::component_system::examples::{VariadicTextJoiner, GreedyTextProcessor};
 use crate::pipeline::{Pipeline, ConnectionValidation};
 
 #[test]

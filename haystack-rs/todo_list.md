@@ -1,6 +1,11 @@
 # TODO CHECKLIST for haystack-rs rust port
 
-## High Level module parity completion tracker
+## end-2-end tests for seeing how the public api is used
+
+- python code for reference is at the repo root: e2e/pipelines
+- rust directory for porting is at the rust project root: ./haystack-rs/haystack-rs/e2e-rs
+
+## High Level module parity completion trackers
 
 - [] components
 - [] core
@@ -15,43 +20,44 @@
 - [] tracing
 - [] utils
 
-### components
+## Individual Modules
 
-agents
-caching
-converters
-extractors
-joiners
-rankers
-routers
-validators
-audio
-classifiers
-embedders
-fetchers
-mod.rs
-readers
-samplers
-websearch
-builders
-connectors
-evaluators
-generators
-preprocessors
-retrievers
-tools
-writers
+Does not track down to the individual file level, just at the mod (folder) level so that you are not too restricted.
+
+### haystack-rs/components module
+
+- [] agents
+- [] audio
+- [] builders
+- [] caching
+- [] classifiers
+- [] connectors
+- [] converters
+- [] embedders
+  - [] backends
+- [] evaluators
+- [] extractors
+- [] fetchers
+- [] generators
+- [] joiners
+- [] mod.rs
+- [] preprocessors
+- [] rankers
+- [] readers
+- [] retrievers
+  - [] in_memory
+- [] routers
+- [] samplers
+- [] tools
+- [] validators
+- [] websearch
+- [] writers
 
 ### core
 
 component
-lib.rs
 pipeline
 super_component
-errors.rs
-macros.rs
-serialization.rs
-type_utils.rs
 
 ### data
 

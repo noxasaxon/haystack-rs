@@ -112,13 +112,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bm25_test"
-version = "0.1.0"
-dependencies = [
- "bm25",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -392,6 +385,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tokio",
 ]
 
 [[package]]

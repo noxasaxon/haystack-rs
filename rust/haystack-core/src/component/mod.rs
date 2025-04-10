@@ -4,13 +4,15 @@
  * This module contains the core Component trait and related functionality.
  */
 
-mod sockets;
-mod types;
+pub mod sockets;
+pub mod types;
 pub mod examples;
+pub mod registry;
 
-pub use sockets::Sockets;
-pub use types::{InputSocket, OutputSocket, Variadic, GreedyVariadic};
+pub use sockets::{Sockets, VariadicSocketHandler};
+pub use types::{InputSocket, OutputSocket, Variadic, GreedyVariadic, SocketType};
 pub use examples::{TextSplitter, TextJoiner};
+pub use registry::{register_component, create_component, ComponentMetadata, registered_component_types};
 
 use std::collections::HashMap;
 use anyhow::Result;

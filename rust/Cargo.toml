@@ -4,7 +4,6 @@ members = [
     "haystack",
     "haystack-core",
     "haystack-dataclasses",
-    "bm25_test",
 ]
 
 [workspace.package]

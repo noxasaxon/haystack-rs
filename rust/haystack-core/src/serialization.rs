@@ -49,63 +49,30 @@ pub fn default_from_dict<T: for<'de> Deserialize<'de>>(data: &Value) -> Result<T
         .context("Failed to deserialize init parameters")
 }
 
-/// Registry of component types used for deserialization
-#[derive(Default)]
-pub struct ComponentRegistry {
-    /// Map from component type string to a factory function
-    factories: HashMap<String, Box<dyn Fn(&ComponentInfo) -> Result<Box<dyn Component>> + Send + Sync>>,
+/// Create a component instance from component info using the registry
+pub fn deserialize_component(info: &ComponentInfo) -> Result<Box<dyn Component>> {
+    crate::component::registry::create_component(info)
 }
 
-impl std::fmt::Debug for ComponentRegistry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ComponentRegistry")
-            .field("registered_types", &self.factories.keys().collect::<Vec<_>>())
-            .finish()
-    }
-}
-
-impl ComponentRegistry {
-    /// Create a new empty registry
-    pub fn new() -> Self {
-        Self {
-            factories: HashMap::new(),
-        }
-    }
+/// Convert a component to a serialized form
+pub fn serialize_component<C: Component + ComponentSerialization>(component: &C) -> Result<Value> {
+    let component_info = component.component_info();
+    let mut result = serde_json::Map::new();
     
-    /// Register a component factory function
-    pub fn register<F>(&mut self, type_name: &str, factory: F)
-    where
-        F: Fn(&ComponentInfo) -> Result<Box<dyn Component>> + Send + Sync + 'static,
-    {
-        self.factories.insert(type_name.to_string(), Box::new(factory));
-    }
+    result.insert("type".to_string(), Value::String(format!("{}.{}", 
+        component_info.module_path, 
+        component_info.class_name
+    )));
+    result.insert("init_parameters".to_string(), serde_json::to_value(component_info.init_parameters)?);
     
-    /// Create a component instance from a component info
-    pub fn create_component(&self, info: &ComponentInfo) -> Result<Box<dyn Component>> {
-        let type_name = format!("{}.{}", info.module_path, info.class_name);
-        let factory = self.factories.get(&type_name)
-            .ok_or_else(|| SerializationError::new(format!("No factory registered for component type '{}'", type_name)))?;
-        
-        factory(info)
-    }
+    Ok(Value::Object(result))
 }
 
-// Global component registry
-lazy_static::lazy_static! {
-    static ref COMPONENT_REGISTRY: std::sync::RwLock<ComponentRegistry> = std::sync::RwLock::new(ComponentRegistry::new());
-}
-
-/// Register a component factory function in the global registry
-pub fn register_component<F>(type_name: &str, factory: F)
-where
-    F: Fn(&ComponentInfo) -> Result<Box<dyn Component>> + Send + Sync + 'static,
-{
-    let mut registry = COMPONENT_REGISTRY.write().unwrap();
-    registry.register(type_name, factory);
-}
-
-/// Create a component instance from component info using the global registry
-pub fn create_component(info: &ComponentInfo) -> Result<Box<dyn Component>> {
-    let registry = COMPONENT_REGISTRY.read().unwrap();
-    registry.create_component(info)
+/// Trait for components that can be serialized and deserialized
+pub trait ComponentSerialization {
+    /// Get the component info for serialization
+    fn component_info(&self) -> ComponentInfo;
+    
+    /// Create a new instance of the component from deserialized info
+    fn from_component_info(info: &ComponentInfo) -> Result<Box<dyn Component>>;
 }

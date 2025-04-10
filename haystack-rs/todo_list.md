@@ -1,5 +1,8 @@
 # TODO CHECKLIST for haystack-rs rust port
 
+PREAMBLE PROMPT: HIGH THINKING:
+Your prime directive is to convert all of the haystack dir (python code) to haystack-rs dir (rust code) for complete feature parity (to the point that it makes sense for the user) at the edge api level. The python and rust code will never interact with each other, so don't worry about making them interoperable across language.
+
 ## end-2-end tests for seeing how the public api is used
 
 - python code for reference is at the repo root: e2e/pipelines

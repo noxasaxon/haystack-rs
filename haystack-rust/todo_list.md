@@ -96,7 +96,7 @@ Checklist:
 - [x] (module root)
 - [] errors
 - [x] in_memory
-- [] types
+- [x] types
 
 ### evaluation
 
